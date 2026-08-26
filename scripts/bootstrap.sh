@@ -26,8 +26,8 @@ grafana_admin_password="${7:-}"
 # ACTION VALIDATION
 #==============================================================================
 
-if [[ "$action" != "validate" && "$action" != "dry-run" && "$action" != "deploy" && "$action" != "verify" ]]; then
-  printf 'Usage: %s validate|dry-run|deploy|verify repository ref domain root-url bind-address [password]\n' "$0" >&2
+if [[ "$action" != "validate" && "$action" != "dry-run" && "$action" != "deploy" && "$action" != "verify" && "$action" != "status" ]]; then
+  printf 'Usage: %s validate|dry-run|deploy|verify|status repository ref domain root-url bind-address [password]\n' "$0" >&2
   exit 2
 fi
 
@@ -53,7 +53,7 @@ fi
 # DEPLOYMENT PRIVILEGES
 #==============================================================================
 
-if [[ "$action" == "deploy" || "$action" == "verify" ]]; then
+if [[ "$action" == "deploy" || "$action" == "verify" || "$action" == "status" ]]; then
   if ! command -v sudo >/dev/null 2>&1 || ! sudo -n true; then
     printf '%s requires non-interactive sudo access.\n' "$action" >&2
     exit 1
@@ -87,7 +87,7 @@ manage_script="$temporary_directory/source/scripts/manage.sh"
 if [[ "$action" == "deploy" ]]; then
   sudo -n bash "$temporary_directory/source/scripts/install-docker.sh" "$action"
   sudo -n env "${manage_environment[@]}" bash "$manage_script" "$action" "$grafana_admin_password"
-elif [[ "$action" == "verify" ]]; then
+elif [[ "$action" == "verify" || "$action" == "status" ]]; then
   sudo -n env "${manage_environment[@]}" bash "$manage_script" "$action"
 else
   bash "$temporary_directory/source/scripts/install-docker.sh" "$action"
