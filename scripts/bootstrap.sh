@@ -41,6 +41,17 @@ if [[ ! "$automation_ref" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
 fi
 
 #==============================================================================
+# DEPLOYMENT PRIVILEGES
+#==============================================================================
+
+if [[ "$action" == "deploy" ]]; then
+  if ! command -v sudo >/dev/null 2>&1 || ! sudo -n true; then
+    printf 'Deployment requires non-interactive sudo access.\n' >&2
+    exit 1
+  fi
+fi
+
+#==============================================================================
 # VERSIONED SOURCE DOWNLOAD
 #==============================================================================
 
@@ -56,9 +67,19 @@ tar --extract --gzip --file "$temporary_directory/automation.tar.gz" \
 # VERSIONED AUTOMATION EXECUTION
 #==============================================================================
 
-bash "$temporary_directory/source/scripts/install-docker.sh" "$action"
-AUTOMATION_REF="$automation_ref" \
-GRAFANA_DOMAIN="$grafana_domain" \
-GRAFANA_ROOT_URL="$grafana_root_url" \
-MONITORING_BIND_ADDRESS="$bind_address" \
-  bash "$temporary_directory/source/scripts/manage.sh" "$action" "$grafana_admin_password"
+if [[ "$action" == "deploy" ]]; then
+  sudo -n bash "$temporary_directory/source/scripts/install-docker.sh" "$action"
+  sudo -n env \
+    AUTOMATION_REF="$automation_ref" \
+    GRAFANA_DOMAIN="$grafana_domain" \
+    GRAFANA_ROOT_URL="$grafana_root_url" \
+    MONITORING_BIND_ADDRESS="$bind_address" \
+    bash "$temporary_directory/source/scripts/manage.sh" "$action" "$grafana_admin_password"
+else
+  bash "$temporary_directory/source/scripts/install-docker.sh" "$action"
+  AUTOMATION_REF="$automation_ref" \
+  GRAFANA_DOMAIN="$grafana_domain" \
+  GRAFANA_ROOT_URL="$grafana_root_url" \
+  MONITORING_BIND_ADDRESS="$bind_address" \
+    bash "$temporary_directory/source/scripts/manage.sh" "$action" "$grafana_admin_password"
+fi
