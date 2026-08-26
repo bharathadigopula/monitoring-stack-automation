@@ -121,7 +121,7 @@ wait_for_endpoint() {
 
 verify_stack() {
   wait_for_endpoint prometheus http://127.0.0.1:9090/-/ready
-  wait_for_endpoint grafana http://127.0.0.1:3000/api/health
+  wait_for_endpoint grafana "http://${MONITORING_BIND_ADDRESS:-127.0.0.1}:3000/api/health"
   printf 'monitoring_verify=ready\n'
 }
 
@@ -141,7 +141,7 @@ show_stack_status() {
     --file "$install_root/current/compose.yaml" \
     logs --tail 20 || true
   printf 'prometheus_http_code=%s\n' "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:9090/-/ready || true)"
-  printf 'grafana_http_code=%s\n' "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:3000/api/health || true)"
+  printf 'grafana_http_code=%s\n' "$(curl --silent --output /dev/null --write-out '%{http_code}' "http://${MONITORING_BIND_ADDRESS:-127.0.0.1}:3000/api/health" || true)"
 }
 
 #==============================================================================
