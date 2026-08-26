@@ -106,6 +106,15 @@ if ! grep -Fq "chown 472:472 \"\$release_path/secrets/grafana-admin-password\"" 
 fi
 
 #==============================================================================
+# SYSTEMD RELEASE ACTIVATION VALIDATION
+#==============================================================================
+
+if ! grep -Fq 'systemctl restart monitoring-stack.service' "$repository_root/scripts/manage.sh"; then
+  printf 'Deployment must restart the active service to apply the new release.\n' >&2
+  exit 1
+fi
+
+#==============================================================================
 # VALIDATION RESULT
 #==============================================================================
 
