@@ -124,6 +124,25 @@ verify_stack() {
 }
 
 #==============================================================================
+# STACK STATUS DIAGNOSTICS
+#==============================================================================
+
+show_stack_status() {
+  printf 'systemd_state=%s\n' "$(systemctl is-active monitoring-stack.service 2>/dev/null || true)"
+  docker compose \
+    --project-directory "$install_root/current" \
+    --file "$install_root/current/compose.yaml" \
+    ps --all || true
+  docker compose \
+    --project-directory "$install_root/current" \
+    --file "$install_root/current/compose.yaml" \
+    logs --tail 20 || true
+  printf 'prometheus_http_code=%s\n' "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:9090/-/ready || true)"
+  printf 'grafana_http_code=%s\n' "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:3000/api/health || true)"
+  printf 'monitoring_status=ready\n'
+}
+
+#==============================================================================
 # GRAFANA BACKUP
 #==============================================================================
 
@@ -201,6 +220,9 @@ case "$action" in
   verify)
     verify_stack
     ;;
+  status)
+    show_stack_status
+    ;;
   backup)
     backup_stack
     ;;
@@ -211,7 +233,7 @@ case "$action" in
     rollback_stack
     ;;
   *)
-    printf 'Usage: %s validate|dry-run|deploy|upgrade|verify|backup|restore|rollback [grafana-password]\n' "$0" >&2
+    printf 'Usage: %s validate|dry-run|deploy|upgrade|verify|status|backup|restore|rollback [grafana-password]\n' "$0" >&2
     exit 2
     ;;
 esac
