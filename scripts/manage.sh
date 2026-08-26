@@ -89,7 +89,8 @@ deploy_stack() {
   ln -sfn "$release_path" "$install_root/current"
   install -m 0644 "$release_path/systemd/monitoring-stack.service" /etc/systemd/system/monitoring-stack.service
   systemctl daemon-reload
-  systemctl enable --now monitoring-stack.service
+  systemctl enable monitoring-stack.service
+  systemctl restart monitoring-stack.service
   verify_stack
   printf 'monitoring_deploy=ready\n'
 }
@@ -130,6 +131,7 @@ verify_stack() {
 
 show_stack_status() {
   printf 'systemd_state=%s\n' "$(systemctl is-active monitoring-stack.service 2>/dev/null || true)"
+  printf 'monitoring_status=ready\n'
   docker compose \
     --project-directory "$install_root/current" \
     --file "$install_root/current/compose.yaml" \
@@ -140,7 +142,6 @@ show_stack_status() {
     logs --tail 20 || true
   printf 'prometheus_http_code=%s\n' "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:9090/-/ready || true)"
   printf 'grafana_http_code=%s\n' "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:3000/api/health || true)"
-  printf 'monitoring_status=ready\n'
 }
 
 #==============================================================================
