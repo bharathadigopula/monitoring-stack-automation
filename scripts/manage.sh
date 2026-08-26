@@ -78,7 +78,8 @@ deploy_stack() {
   cp -a "$source_root/." "$release_path/"
   install -d -m 0700 "$release_path/secrets"
   printf '%s\n' "$grafana_admin_password" > "$release_path/secrets/grafana-admin-password"
-  chmod 0600 "$release_path/secrets/grafana-admin-password"
+  chown 472:472 "$release_path/secrets/grafana-admin-password"
+  chmod 0400 "$release_path/secrets/grafana-admin-password"
   write_environment
 
   if [[ -L "$install_root/current" ]]; then
