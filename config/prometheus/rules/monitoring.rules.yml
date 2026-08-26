@@ -1,0 +1,62 @@
+#==============================================================================
+# MONITORING STACK ALERTS
+#==============================================================================
+
+#==============================================================================
+# PROMETHEUS RULE GROUPS
+#==============================================================================
+
+groups:
+  #============================================================================
+  # HOST UTILISATION RECORDING RULES
+  #============================================================================
+
+  - name: monitoring-recording
+    rules:
+      - record: instance:node_cpu_utilisation:rate5m
+        expr: 1 - avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m]))
+
+      - record: instance:node_memory_utilisation:ratio
+        expr: 1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)
+
+  #============================================================================
+  # MONITORING STACK ALERT RULES
+  #============================================================================
+
+  - name: monitoring-stack
+    rules:
+      #==========================================================================
+      # TARGET AVAILABILITY ALERT
+      #==========================================================================
+
+      - alert: PrometheusTargetDown
+        expr: up == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Prometheus target is unavailable
+
+      #==========================================================================
+      # HOST MEMORY ALERT
+      #==========================================================================
+
+      - alert: HostMemoryPressure
+        expr: instance:node_memory_utilisation:ratio > 0.90
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: Host memory utilisation is above 90 percent
+
+      #==========================================================================
+      # HOST DISK ALERT
+      #==========================================================================
+
+      - alert: HostDiskPressure
+        expr: 1 - (node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"}) > 0.90
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: Host filesystem utilisation is above 90 percent
