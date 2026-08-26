@@ -95,8 +95,18 @@ if docker compose version >/dev/null 2>&1; then
     --file "$repository_root/compose.yaml" config --quiet
 fi
 
-  #==============================================================================
-  # VALIDATION RESULT
-  #==============================================================================
+#==============================================================================
+# GRAFANA SECRET PERMISSION VALIDATION
+#==============================================================================
+
+if ! grep -Fq "chown 472:472 \"\$release_path/secrets/grafana-admin-password\"" "$repository_root/scripts/manage.sh" || \
+  ! grep -Fq "chmod 0400 \"\$release_path/secrets/grafana-admin-password\"" "$repository_root/scripts/manage.sh"; then
+  printf 'Grafana secret must be readable only by container UID 472.\n' >&2
+  exit 1
+fi
+
+#==============================================================================
+# VALIDATION RESULT
+#==============================================================================
 
 printf 'monitoring_validation=ready\n'
