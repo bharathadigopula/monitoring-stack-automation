@@ -97,9 +97,29 @@ deploy_stack() {
 # STACK HEALTH VERIFICATION
 #==============================================================================
 
+wait_for_endpoint() {
+  local service_name="$1"
+  local endpoint="$2"
+  local attempt
+
+  for (( attempt = 1; attempt <= 60; attempt++ )); do
+    if curl --fail --silent --show-error "$endpoint" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 2
+  done
+
+  printf '%s did not become ready at %s.\n' "$service_name" "$endpoint" >&2
+  docker compose \
+    --project-directory "$install_root/current" \
+    --file "$install_root/current/compose.yaml" \
+    ps >&2 || true
+  return 1
+}
+
 verify_stack() {
-  curl --fail --silent --show-error http://127.0.0.1:9090/-/ready >/dev/null
-  curl --fail --silent --show-error http://127.0.0.1:3000/api/health >/dev/null
+  wait_for_endpoint prometheus http://127.0.0.1:9090/-/ready
+  wait_for_endpoint grafana http://127.0.0.1:3000/api/health
   printf 'monitoring_verify=ready\n'
 }
 
