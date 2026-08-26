@@ -26,10 +26,10 @@ grafana_admin_password="${7:-}"
 # ACTION VALIDATION
 #==============================================================================
 
-if [[ "$action" != "validate" && "$action" != "dry-run" && "$action" != "deploy" && "$action" != "verify" && "$action" != "status" ]]; then
-  printf 'Usage: %s validate|dry-run|deploy|verify|status repository ref domain root-url bind-address [password]\n' "$0" >&2
-  exit 2
-fi
+case "$action" in
+  validate|dry-run|deploy|verify|status) ;;
+  *) printf 'Invalid monitoring action: %s\n' "$action" >&2; exit 2 ;;
+esac
 
 #==============================================================================
 # REPOSITORY VALIDATION
@@ -53,11 +53,9 @@ fi
 # DEPLOYMENT PRIVILEGES
 #==============================================================================
 
-if [[ "$action" == "deploy" || "$action" == "verify" || "$action" == "status" ]]; then
-  if ! command -v sudo >/dev/null 2>&1 || ! sudo -n true; then
-    printf '%s requires non-interactive sudo access.\n' "$action" >&2
-    exit 1
-  fi
+if [[ "$action" =~ ^(deploy|verify|status)$ ]] && { ! command -v sudo >/dev/null 2>&1 || ! sudo -n true; }; then
+  printf '%s requires non-interactive sudo access.\n' "$action" >&2
+  exit 1
 fi
 
 #==============================================================================
@@ -66,8 +64,9 @@ fi
 
 temporary_directory=$(mktemp -d)
 trap 'rm -rf "$temporary_directory"' EXIT
-archive_url="https://github.com/$automation_repository/archive/refs/tags/$automation_ref.tar.gz"
-curl --fail --location --silent --show-error "$archive_url" --output "$temporary_directory/automation.tar.gz"
+curl --fail --location --silent --show-error \
+  "https://github.com/$automation_repository/archive/refs/tags/$automation_ref.tar.gz" \
+  --output "$temporary_directory/automation.tar.gz"
 mkdir "$temporary_directory/source"
 tar --extract --gzip --file "$temporary_directory/automation.tar.gz" \
   --directory "$temporary_directory/source" --strip-components=1
