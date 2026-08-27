@@ -153,6 +153,7 @@ verify_prometheus_query() {
   local check_name="$1"
   local expression="$2"
   local minimum_results="$3"
+  local report_failure="${4:-true}"
   local response
 
   response=$(curl --fail --silent --show-error --get \
@@ -161,11 +162,29 @@ verify_prometheus_query() {
   if ! jq -e --argjson minimum_results "$minimum_results" '
     .status == "success" and (.data.result | length) >= $minimum_results
   ' <<< "$response" >/dev/null; then
-    printf 'Prometheus verification failed: %s.\n' "$check_name" >&2
+    if [[ "$report_failure" == "true" ]]; then
+      printf 'Prometheus verification failed: %s.\n' "$check_name" >&2
+    fi
     return 1
   fi
 
   printf '%s=ready\n' "$check_name"
+}
+
+wait_for_prometheus_query() {
+  local check_name="$1"
+  local expression="$2"
+  local minimum_results="$3"
+  local attempt
+
+  for (( attempt = 1; attempt <= 30; attempt++ )); do
+    if verify_prometheus_query "$check_name" "$expression" "$minimum_results" false; then
+      return 0
+    fi
+    sleep 2
+  done
+
+  verify_prometheus_query "$check_name" "$expression" "$minimum_results"
 }
 
 #==============================================================================
@@ -189,6 +208,7 @@ show_cloudflared_network_status() {
 }
 
 verify_prometheus_targets() {
+  local report_failure="${1:-true}"
   local response
 
   response=$(curl --fail --silent --show-error http://127.0.0.1:9090/api/v1/targets)
@@ -202,6 +222,9 @@ verify_prometheus_targets() {
       select(.health != "up")
     ] | length) == 0
   ' <<< "$response" >/dev/null; then
+    if [[ "$report_failure" != "true" ]]; then
+      return 1
+    fi
     printf 'Prometheus target verification failed.\n' >&2
     jq -r '
       [.data.activeTargets[].labels.job] | unique | "prometheus_target_jobs=" + join(",")
@@ -220,6 +243,19 @@ verify_prometheus_targets() {
   fi
 
   printf 'prometheus_targets=ready\n'
+}
+
+wait_for_prometheus_targets() {
+  local attempt
+
+  for (( attempt = 1; attempt <= 30; attempt++ )); do
+    if verify_prometheus_targets false; then
+      return 0
+    fi
+    sleep 2
+  done
+
+  verify_prometheus_targets
 }
 
 verify_stack() {
@@ -242,10 +278,10 @@ verify_stack() {
   fi
   printf 'monitoring_services=ready\n'
 
-  verify_prometheus_targets
-  verify_prometheus_query external_probes 'probe_success{job="blackbox"} == 1' 2
-  verify_prometheus_query cloudflared_connections 'cloudflared_tunnel_ha_connections > 0' 1
-  verify_prometheus_query alertmanager_discovery 'prometheus_notifications_alertmanagers_discovered > 0' 1
+  wait_for_prometheus_targets
+  wait_for_prometheus_query external_probes 'probe_success{job="blackbox"} == 1' 2
+  wait_for_prometheus_query cloudflared_connections 'cloudflared_tunnel_ha_connections > 0' 1
+  wait_for_prometheus_query alertmanager_discovery 'prometheus_notifications_alertmanagers_discovered > 0' 1
 
   rules=$(curl --fail --silent --show-error http://127.0.0.1:9090/api/v1/rules)
   if ! jq -e '
