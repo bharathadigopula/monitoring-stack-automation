@@ -75,7 +75,7 @@ Use an immutable semantic version tag. `bootstrap.sh` is deliberately smaller th
 bash scripts/bootstrap.sh \
   dry-run \
   owner/monitoring-stack-automation \
-  v1.1.6 \
+  v1.2.0 \
   grafana.example.com \
   https://grafana.example.com \
   10.0.0.10
@@ -104,6 +104,7 @@ LIFECYCLE OPERATIONS
 | `backup` | Yes | Creates a root-only archive of Grafana, Prometheus, and Alertmanager state |
 | `restore` | Yes | Restores `MONITORING_RESTORE_ARCHIVE` |
 | `rollback` | Yes | Exchanges current and previous release symlinks |
+| `test-alert` | No | Sends controlled firing and resolved emails and verifies Alertmanager notification counters |
 
 `monitoring-stack-backup.timer` runs daily at 02:30 with a random delay of up to 15 minutes. Backups are written under `/var/backups/monitoring-stack`, retain three Docker volumes, and delete archives older than seven days. Restore accepts only an existing managed archive and verifies all four control-plane endpoints after startup.
 
