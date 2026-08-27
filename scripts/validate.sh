@@ -115,6 +115,16 @@ if ! grep -Fq 'systemctl restart monitoring-stack.service' "$repository_root/scr
 fi
 
 #==============================================================================
+# GRAFANA HEALTH ADDRESS VALIDATION
+#==============================================================================
+
+if ! grep -Fq "wait_for_endpoint grafana \"http://\${MONITORING_BIND_ADDRESS:-127.0.0.1}:3000/api/health\"" \
+  "$repository_root/scripts/manage.sh"; then
+  printf 'Grafana health must use the configured private bind address.\n' >&2
+  exit 1
+fi
+
+#==============================================================================
 # VALIDATION RESULT
 #==============================================================================
 
