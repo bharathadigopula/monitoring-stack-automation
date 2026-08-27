@@ -168,6 +168,26 @@ verify_prometheus_query() {
   printf '%s=ready\n' "$check_name"
 }
 
+#==============================================================================
+# CLOUDFLARED NETWORK DIAGNOSTICS
+#==============================================================================
+
+show_cloudflared_network_status() {
+  local target
+  local target_host
+
+  target=$(jq -r '.[0].targets[0] // empty' "$install_root/current/config/prometheus/targets/cloudflared.json")
+  target_host=${target%:*}
+  if [[ -z "$target_host" ]]; then
+    printf 'cloudflared_target=missing\n' >&2
+    return
+  fi
+
+  printf 'cloudflared_host_probe=%s\n' "$(curl --connect-timeout 3 --max-time 5 --silent --output /dev/null --write-out 'http_code=%{http_code},error=%{errormsg}' "http://$target/metrics" 2>/dev/null || true)" >&2
+  printf 'cloudflared_host_route=%s\n' "$(ip -4 route get "$target_host" 2>&1 | head -n 1)" >&2
+  printf 'monitoring_docker_subnet=%s\n' "$(docker network inspect monitoring-stack_default --format '{{range .IPAM.Config}}{{.Subnet}}{{end}}' 2>/dev/null || true)" >&2
+}
+
 verify_prometheus_targets() {
   local response
 
@@ -193,6 +213,9 @@ verify_prometheus_targets() {
       "prometheus_target_failure=" + .labels.job + "/" + .labels.instance + ":" + .health + ":" +
       (.lastError | gsub("[\\r\\n]"; " "))
     ' <<< "$response" >&2
+    if jq -e '.data.activeTargets[] | select(.labels.job == "cloudflared" and .health != "up")' <<< "$response" >/dev/null; then
+      show_cloudflared_network_status
+    fi
     return 1
   fi
 
