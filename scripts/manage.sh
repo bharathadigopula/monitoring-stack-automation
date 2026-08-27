@@ -168,6 +168,36 @@ verify_prometheus_query() {
   printf '%s=ready\n' "$check_name"
 }
 
+verify_prometheus_targets() {
+  local response
+
+  response=$(curl --fail --silent --show-error http://127.0.0.1:9090/api/v1/targets)
+  if ! jq -e '
+    .status == "success" and
+    (["alertmanager", "blackbox-exporter", "cadvisor", "cloudflared", "grafana", "node", "prometheus"] -
+      ([.data.activeTargets[].labels.job] | unique) | length) == 0 and
+    ([
+      .data.activeTargets[] |
+      select(.labels.job | test("^(prometheus|node|cadvisor|grafana|alertmanager|blackbox-exporter|cloudflared)$")) |
+      select(.health != "up")
+    ] | length) == 0
+  ' <<< "$response" >/dev/null; then
+    printf 'Prometheus target verification failed.\n' >&2
+    jq -r '
+      [.data.activeTargets[].labels.job] | unique | "prometheus_target_jobs=" + join(",")
+    ' <<< "$response" >&2
+    jq -r '
+      .data.activeTargets[] |
+      select(.labels.job | test("^(prometheus|node|cadvisor|grafana|alertmanager|blackbox-exporter|cloudflared)$")) |
+      select(.health != "up") |
+      "prometheus_target_failure=" + .labels.job + "/" + .labels.instance + ":" + .health
+    ' <<< "$response" >&2
+    return 1
+  fi
+
+  printf 'prometheus_targets=ready\n'
+}
+
 verify_stack() {
   local running_services
   local dashboard_count
@@ -188,8 +218,7 @@ verify_stack() {
   fi
   printf 'monitoring_services=ready\n'
 
-  verify_prometheus_query prometheus_targets \
-    'up{job=~"prometheus|node|cadvisor|grafana|alertmanager|blackbox-exporter|cloudflared"} == 1' 7
+  verify_prometheus_targets
   verify_prometheus_query external_probes 'probe_success{job="blackbox"} == 1' 2
   verify_prometheus_query cloudflared_connections 'cloudflared_tunnel_ha_connections > 0' 1
   verify_prometheus_query alertmanager_discovery 'prometheus_notifications_alertmanagers_discovered > 0' 1

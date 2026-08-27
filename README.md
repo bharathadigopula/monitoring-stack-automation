@@ -75,7 +75,7 @@ Use an immutable semantic version tag. `bootstrap.sh` is deliberately smaller th
 bash scripts/bootstrap.sh \
   dry-run \
   owner/monitoring-stack-automation \
-  v1.1.2 \
+  v1.1.3 \
   grafana.example.com \
   https://grafana.example.com \
   10.0.0.10
