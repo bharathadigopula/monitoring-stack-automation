@@ -27,6 +27,15 @@ route:
   group_interval: 5m
   repeat_interval: 4h
   routes:
+    #==============================================================================
+    # CONTROLLED DELIVERY TEST ROUTE
+    #==============================================================================
+    - receiver: operations-email
+      matchers:
+        - alertname="MonitoringDeliveryTest"
+      group_wait: 5s
+      group_interval: 15s
+      repeat_interval: 4h
     - receiver: operations-email
       matchers:
         - severity="critical"
