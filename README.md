@@ -75,7 +75,7 @@ Use an immutable semantic version tag. `bootstrap.sh` is deliberately smaller th
 bash scripts/bootstrap.sh \
   dry-run \
   owner/monitoring-stack-automation \
-  v1.1.1 \
+  v1.1.2 \
   grafana.example.com \
   https://grafana.example.com \
   10.0.0.10
@@ -99,7 +99,7 @@ LIFECYCLE OPERATIONS
 | `dry-run` | No | Validates and reports the release path |
 | `deploy` | Yes | Installs a release and starts systemd service |
 | `upgrade` | Yes | Deploys a new release while retaining the previous symlink |
-| `verify` | No | Checks Prometheus, Alertmanager, Blackbox Exporter, and Grafana health endpoints |
+| `verify` | No | Checks endpoints, six services, scrape targets, probes, Cloudflare connections, Alertmanager discovery, rules, seven dashboards, and backup timer |
 | `status` | No | Reports systemd, Compose, logs, and control-plane endpoint codes |
 | `backup` | Yes | Creates a root-only archive of Grafana, Prometheus, and Alertmanager state |
 | `restore` | Yes | Restores `MONITORING_RESTORE_ARCHIVE` |

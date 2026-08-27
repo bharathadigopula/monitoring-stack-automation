@@ -149,11 +149,75 @@ wait_for_endpoint() {
   return 1
 }
 
+verify_prometheus_query() {
+  local check_name="$1"
+  local expression="$2"
+  local minimum_results="$3"
+  local response
+
+  response=$(curl --fail --silent --show-error --get \
+    --data-urlencode "query=$expression" \
+    http://127.0.0.1:9090/api/v1/query)
+  if ! jq -e --argjson minimum_results "$minimum_results" '
+    .status == "success" and (.data.result | length) >= $minimum_results
+  ' <<< "$response" >/dev/null; then
+    printf 'Prometheus verification failed: %s.\n' "$check_name" >&2
+    return 1
+  fi
+
+  printf '%s=ready\n' "$check_name"
+}
+
 verify_stack() {
+  local running_services
+  local dashboard_count
+  local rules
+
   wait_for_endpoint prometheus http://127.0.0.1:9090/-/ready
   wait_for_endpoint alertmanager http://127.0.0.1:9093/-/ready
   wait_for_endpoint blackbox-exporter http://127.0.0.1:9115/-/healthy
   wait_for_endpoint grafana "http://${MONITORING_BIND_ADDRESS:-127.0.0.1}:3000/api/health"
+
+  running_services=$(docker compose \
+    --project-directory "$install_root/current" \
+    --file "$install_root/current/compose.yaml" \
+    ps --services --status running | wc -l | tr -d ' ')
+  if (( running_services != 6 )); then
+    printf 'Expected six running monitoring services, found %s.\n' "$running_services" >&2
+    return 1
+  fi
+  printf 'monitoring_services=ready\n'
+
+  verify_prometheus_query prometheus_targets \
+    'up{job=~"prometheus|node|cadvisor|grafana|alertmanager|blackbox-exporter|cloudflared"} == 1' 7
+  verify_prometheus_query external_probes 'probe_success{job="blackbox"} == 1' 2
+  verify_prometheus_query cloudflared_connections 'cloudflared_tunnel_ha_connections > 0' 1
+  verify_prometheus_query alertmanager_discovery 'prometheus_notifications_alertmanagers_discovered > 0' 1
+
+  rules=$(curl --fail --silent --show-error http://127.0.0.1:9090/api/v1/rules)
+  if ! jq -e '
+    .status == "success" and
+    ([.data.groups[].rules[]] | length) > 0 and
+    ([.data.groups[].rules[] | select(.health != "ok")] | length) == 0
+  ' <<< "$rules" >/dev/null; then
+    printf 'One or more Prometheus rules are unhealthy.\n' >&2
+    return 1
+  fi
+  printf 'prometheus_rules=ready\n'
+
+  curl --fail --silent --show-error http://127.0.0.1:9093/api/v2/status >/dev/null
+  printf 'alertmanager_status=ready\n'
+
+  dashboard_count=$(find "$install_root/current/dashboards" -maxdepth 1 -type f -name '*.json' | wc -l | tr -d ' ')
+  if (( dashboard_count != 7 )); then
+    printf 'Expected seven provisioned dashboards, found %s.\n' "$dashboard_count" >&2
+    return 1
+  fi
+  printf 'grafana_dashboards=ready\n'
+
+  systemctl is-enabled --quiet monitoring-stack-backup.timer
+  systemctl is-active --quiet monitoring-stack-backup.timer
+  printf 'monitoring_backup_timer=ready\n'
   printf 'monitoring_verify=ready\n'
 }
 
