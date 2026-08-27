@@ -116,25 +116,38 @@ fi
 # COMPONENT CONFIGURATION VALIDATION
 #==============================================================================
 
+run_quietly() {
+  local output_file
+  output_file=$(mktemp)
+
+  if ! "$@" > "$output_file" 2>&1; then
+    cat "$output_file" >&2
+    rm -f "$output_file"
+    return 1
+  fi
+
+  rm -f "$output_file"
+}
+
 if docker version >/dev/null 2>&1; then
-  docker run --rm \
+  run_quietly docker run --rm \
     --entrypoint /bin/promtool \
     --volume "$repository_root/config/prometheus:/etc/prometheus:ro" \
     prom/prometheus:v3.14.0 \
-    check config /etc/prometheus/prometheus.yml >/dev/null
+    check config /etc/prometheus/prometheus.yml
 
-  docker run --rm \
+  run_quietly docker run --rm \
     --entrypoint /bin/amtool \
     --volume "$repository_root/config/alertmanager:/etc/alertmanager:ro" \
     prom/alertmanager:v0.34.0 \
-    check-config /etc/alertmanager/alertmanager.yml.template >/dev/null
+    check-config /etc/alertmanager/alertmanager.yml.template
 
-  docker run --rm \
+  run_quietly docker run --rm \
     --entrypoint /bin/blackbox_exporter \
     --volume "$repository_root/config/blackbox:/etc/blackbox_exporter:ro" \
     quay.io/prometheus/blackbox-exporter:v0.28.0 \
     --config.file=/etc/blackbox_exporter/blackbox.yml \
-    --config.check >/dev/null
+    --config.check
 fi
 
 #==============================================================================
