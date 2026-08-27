@@ -29,7 +29,7 @@ smtp_app_password="${9:-}"
 #==============================================================================
 
 case "$action" in
-  validate|dry-run|deploy|verify|status|backup|restore|rollback) ;;
+  validate|dry-run|deploy|verify|status|backup|restore|rollback|test-alert) ;;
   *) printf 'Invalid action.\n' >&2; exit 2 ;;
 esac
 
@@ -55,7 +55,7 @@ fi
 # DEPLOYMENT PRIVILEGES
 #==============================================================================
 
-if [[ "$action" =~ ^(deploy|verify|status|backup|restore|rollback)$ ]] && { ! command -v sudo >/dev/null 2>&1 || ! sudo -n true; }; then
+if [[ "$action" =~ ^(deploy|verify|status|backup|restore|rollback|test-alert)$ ]] && { ! command -v sudo >/dev/null 2>&1 || ! sudo -n true; }; then
   printf 'Non-interactive sudo is required.\n' >&2
   exit 1
 fi
@@ -89,7 +89,7 @@ manage_script="$source_root/scripts/manage.sh"
 if [[ "$action" == "deploy" ]]; then
   sudo -n bash "$source_root/scripts/install-docker.sh" "$action"
   sudo -n env "${run_env[@]}" bash "$manage_script" "$action" "$grafana_admin_password" "$smtp_app_password"
-elif [[ "$action" =~ ^(verify|status|backup|restore|rollback)$ ]]; then
+elif [[ "$action" =~ ^(verify|status|backup|restore|rollback|test-alert)$ ]]; then
   sudo -n env "${run_env[@]}" bash "$manage_script" "$action"
 else
   bash "$source_root/scripts/install-docker.sh" "$action"
