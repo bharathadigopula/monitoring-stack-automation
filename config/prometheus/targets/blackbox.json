@@ -1,0 +1,12 @@
+[
+  {
+    "targets": [
+      "https://grafana.bharathcloudops.com",
+      "https://bharathcloudops.cloudflareaccess.com"
+    ],
+    "labels": {
+      "environment": "prd",
+      "probe": "https"
+    }
+  }
+]

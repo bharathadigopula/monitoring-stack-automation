@@ -1,1 +1,11 @@
-[]
+[
+	{
+		"targets": [
+			"10.10.10.125:8880"
+		],
+		"labels": {
+			"environment": "prd",
+			"instance": "web-01"
+		}
+	}
+]

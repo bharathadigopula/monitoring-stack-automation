@@ -1,0 +1,20 @@
+#==============================================================================
+# MONITORING STACK BACKUP SERVICE
+#==============================================================================
+
+#==============================================================================
+# UNIT DEPENDENCIES
+#==============================================================================
+
+[Unit]
+Description=Back up Grafana, Prometheus and Alertmanager state
+Requires=docker.service
+After=docker.service monitoring-stack.service
+
+#==============================================================================
+# BACKUP LIFECYCLE
+#==============================================================================
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/env bash /opt/monitoring-stack/current/scripts/manage.sh backup
