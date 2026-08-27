@@ -190,7 +190,8 @@ verify_prometheus_targets() {
       .data.activeTargets[] |
       select(.labels.job | test("^(prometheus|node|cadvisor|grafana|alertmanager|blackbox-exporter|cloudflared)$")) |
       select(.health != "up") |
-      "prometheus_target_failure=" + .labels.job + "/" + .labels.instance + ":" + .health
+      "prometheus_target_failure=" + .labels.job + "/" + .labels.instance + ":" + .health + ":" +
+      (.lastError | gsub("[\\r\\n]"; " "))
     ' <<< "$response" >&2
     return 1
   fi
