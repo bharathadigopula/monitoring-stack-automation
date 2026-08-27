@@ -125,6 +125,17 @@ if ! grep -Fq "wait_for_endpoint grafana \"http://\${MONITORING_BIND_ADDRESS:-12
 fi
 
 #==============================================================================
+# OCI OUTPUT BUDGET VALIDATION
+#==============================================================================
+
+if ! grep -Fq 'apt-get update >/dev/null' "$repository_root/scripts/install-docker.sh" || \
+  ! grep -Fq 'docker version >/dev/null' "$repository_root/scripts/install-docker.sh" || \
+  ! grep -Fq 'docker compose version >/dev/null' "$repository_root/scripts/install-docker.sh"; then
+  printf 'Routine installer output must remain quiet so OCI retains readiness markers.\n' >&2
+  exit 1
+fi
+
+#==============================================================================
 # VALIDATION RESULT
 #==============================================================================
 
