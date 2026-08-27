@@ -151,6 +151,17 @@ if docker version >/dev/null 2>&1; then
 fi
 
 #==============================================================================
+# CONTROLLED ALERT ROUTE VALIDATION
+#==============================================================================
+
+controlled_alert_route=$'    - receiver: operations-email\n      matchers:\n        - alertname="MonitoringDeliveryTest"\n      group_wait: 5s\n      group_interval: 15s\n      repeat_interval: 4h'
+if ! grep --fixed-strings --quiet "$controlled_alert_route" \
+  "$repository_root/config/alertmanager/alertmanager.yml.template"; then
+  printf 'Controlled alert delivery route must complete within the workflow timeout.\n' >&2
+  exit 1
+fi
+
+#==============================================================================
 # GRAFANA SECRET PERMISSION VALIDATION
 #==============================================================================
 
