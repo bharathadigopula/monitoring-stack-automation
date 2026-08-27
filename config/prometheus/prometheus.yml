@@ -11,6 +11,16 @@ global:
   evaluation_interval: 60s
 
 #==============================================================================
+# ALERTMANAGER ROUTING
+#==============================================================================
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
+#==============================================================================
 # RULE FILE DISCOVERY
 #==============================================================================
 
@@ -58,6 +68,46 @@ scrape_configs:
     static_configs:
       - targets:
           - grafana:3000
+
+          #============================================================================
+          # ALERTMANAGER HEALTH METRICS
+          #============================================================================
+
+  - job_name: alertmanager
+    static_configs:
+      - targets:
+          - alertmanager:9093
+
+          #============================================================================
+          # BLACKBOX EXPORTER HEALTH METRICS
+          #============================================================================
+
+  - job_name: blackbox-exporter
+    static_configs:
+      - targets:
+          - blackbox-exporter:9115
+
+          #============================================================================
+          # EXTERNAL HTTPS PROBES
+          #============================================================================
+
+  - job_name: blackbox
+    metrics_path: /probe
+    params:
+      module:
+        - https_2xx
+    file_sd_configs:
+      - files:
+          - /etc/prometheus/targets/blackbox.json
+    relabel_configs:
+      - source_labels:
+          - __address__
+        target_label: __param_target
+      - source_labels:
+          - __param_target
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
 
           #============================================================================
           # CLOUDFLARE CONNECTOR METRICS

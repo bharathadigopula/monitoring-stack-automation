@@ -1,0 +1,56 @@
+#==============================================================================
+# ALERTMANAGER EMAIL ROUTING
+#==============================================================================
+
+#==============================================================================
+# SMTP GLOBAL SETTINGS
+#==============================================================================
+
+global:
+  smtp_smarthost: smtp.gmail.com:587
+  smtp_from: bharathcloudops@gmail.com
+  smtp_auth_username: bharathcloudops@gmail.com
+  smtp_auth_password: "__SMTP_APP_PASSWORD__"
+  smtp_require_tls: true
+
+#==============================================================================
+# ALERT ROUTING TREE
+#==============================================================================
+
+route:
+  receiver: operations-email
+  group_by:
+    - alertname
+    - severity
+    - instance
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    - receiver: operations-email
+      matchers:
+        - severity="critical"
+      repeat_interval: 1h
+
+#==============================================================================
+# ALERT RECEIVERS
+#==============================================================================
+
+receivers:
+  - name: operations-email
+    email_configs:
+      - to: adigopulabharath@outlook.com
+        send_resolved: true
+
+#==============================================================================
+# ALERT INHIBITION
+#==============================================================================
+
+inhibit_rules:
+  - source_matchers:
+      - severity="critical"
+    target_matchers:
+      - severity="warning"
+    equal:
+      - alertname
+      - instance

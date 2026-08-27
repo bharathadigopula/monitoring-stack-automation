@@ -19,6 +19,18 @@ groups:
       - record: instance:node_memory_utilisation:ratio
         expr: 1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)
 
+      - record: instance_device:node_filesystem_utilisation:ratio
+        expr: 1 - (node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs"})
+
+      - record: instance_device:node_filesystem_inode_utilisation:ratio
+        expr: 1 - (node_filesystem_files_free{fstype!~"tmpfs|overlay|squashfs"} / node_filesystem_files{fstype!~"tmpfs|overlay|squashfs"})
+
+      - record: name:container_cpu_utilisation:rate5m
+        expr: sum by (name) (rate(container_cpu_usage_seconds_total{name!=""}[5m]))
+
+      - record: name:container_memory_utilisation:ratio
+        expr: sum by (name) (container_memory_working_set_bytes{name!=""}) / sum by (name) (container_spec_memory_limit_bytes{name!=""} > 0)
+
   #============================================================================
   # MONITORING STACK ALERT RULES
   #============================================================================
@@ -30,12 +42,70 @@ groups:
       #==========================================================================
 
       - alert: PrometheusTargetDown
-        expr: up == 0
+        expr: up{job!="blackbox"} == 0
         for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Prometheus target {{ $labels.job }} is unavailable
+          description: Target {{ $labels.instance }} has been unreachable for more than five minutes.
+
+      #==========================================================================
+      # EXTERNAL ENDPOINT ALERTS
+      #==========================================================================
+
+      - alert: ExternalEndpointDown
+        expr: probe_success{job="blackbox"} == 0
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: External endpoint {{ $labels.instance }} is unavailable
+          description: The HTTPS probe has failed continuously for more than three minutes.
+
+      - alert: TLSCertificateExpiringSoon
+        expr: probe_ssl_earliest_cert_expiry{job="blackbox"} - time() < 1209600
+        for: 1h
         labels:
           severity: warning
         annotations:
-          summary: Prometheus target is unavailable
+          summary: TLS certificate for {{ $labels.instance }} expires within 14 days
+          description: Renew the endpoint certificate before external access is interrupted.
+
+      #==========================================================================
+      # CLOUDFLARE TUNNEL ALERTS
+      #==========================================================================
+
+      - alert: CloudflareTunnelMetricsMissing
+        expr: absent(up{job="cloudflared"})
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Cloudflare Tunnel metrics target is missing
+          description: Prometheus has no discovered cloudflared target.
+
+      - alert: CloudflareTunnelNoConnections
+        expr: absent(cloudflared_tunnel_ha_connections) or sum(cloudflared_tunnel_ha_connections) < 1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Cloudflare Tunnel has no active edge connections
+          description: The connector has reported no healthy edge connection for five minutes.
+
+      #==========================================================================
+      # HOST CPU ALERT
+      #==========================================================================
+
+      - alert: HostCPUPressure
+        expr: instance:node_cpu_utilisation:rate5m > 0.90
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: Host CPU utilisation is above 90 percent
+          description: Host {{ $labels.instance }} has sustained high CPU utilisation for 15 minutes.
 
       #==========================================================================
       # HOST MEMORY ALERT
@@ -48,15 +118,92 @@ groups:
           severity: warning
         annotations:
           summary: Host memory utilisation is above 90 percent
+          description: Host {{ $labels.instance }} has sustained high memory utilisation for 15 minutes.
 
       #==========================================================================
       # HOST DISK ALERT
       #==========================================================================
 
       - alert: HostDiskPressure
-        expr: 1 - (node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"}) > 0.90
+        expr: instance_device:node_filesystem_utilisation:ratio > 0.90
         for: 15m
         labels:
           severity: warning
         annotations:
           summary: Host filesystem utilisation is above 90 percent
+          description: Filesystem {{ $labels.mountpoint }} on {{ $labels.instance }} is running out of space.
+
+      - alert: HostDiskCritical
+        expr: instance_device:node_filesystem_utilisation:ratio > 0.97
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Host filesystem utilisation is above 97 percent
+          description: Filesystem {{ $labels.mountpoint }} on {{ $labels.instance }} requires immediate action.
+
+      - alert: HostInodePressure
+        expr: instance_device:node_filesystem_inode_utilisation:ratio > 0.90
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: Host filesystem inode utilisation is above 90 percent
+          description: Filesystem {{ $labels.mountpoint }} on {{ $labels.instance }} is running out of inodes.
+
+      #==========================================================================
+      # CONTAINER RESOURCE ALERT
+      #==========================================================================
+
+      - alert: ContainerMemoryPressure
+        expr: name:container_memory_utilisation:ratio > 0.90
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Container {{ $labels.name }} memory utilisation is above 90 percent
+          description: The container has remained close to its memory limit for ten minutes.
+
+      #==========================================================================
+      # PROMETHEUS CONTROL PLANE ALERTS
+      #==========================================================================
+
+      - alert: PrometheusConfigurationReloadFailed
+        expr: prometheus_config_last_reload_successful == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Prometheus configuration reload failed
+          description: Prometheus is continuing with an older configuration.
+
+      - alert: PrometheusRuleEvaluationFailures
+        expr: increase(prometheus_rule_evaluation_failures_total[10m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Prometheus rule evaluations are failing
+          description: At least one recording or alert rule failed during the last ten minutes.
+
+      - alert: PrometheusStoragePressure
+        expr: prometheus_tsdb_storage_blocks_bytes > 7516192768
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: Prometheus TSDB blocks exceed seven GiB
+          description: Stored blocks are approaching the configured eight GiB retention limit.
+
+      #==========================================================================
+      # ALERT DELIVERY FAILURE
+      #==========================================================================
+
+      - alert: AlertmanagerNotificationFailures
+        expr: increase(alertmanager_notifications_failed_total[10m]) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Alertmanager email delivery is failing
+          description: Alertmanager could not deliver one or more notifications during the last ten minutes.

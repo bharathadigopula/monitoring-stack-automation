@@ -22,13 +22,18 @@ repository_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 
 required_files=(
   compose.yaml
+  config/alertmanager/alertmanager.yml.template
+  config/blackbox/blackbox.yml
   config/prometheus/prometheus.yml
   config/prometheus/rules/monitoring.rules.yml
+  config/prometheus/targets/blackbox.json
   config/prometheus/targets/cloudflared.json
   config/prometheus/targets/jenkins.json
   config/grafana/provisioning/datasources/datasource.yml
   config/grafana/provisioning/dashboards/default.yml
   dashboards/monitoring-health.json
+  systemd/monitoring-stack-backup.service
+  systemd/monitoring-stack-backup.timer
 )
 
 for required_file in "${required_files[@]}"; do
@@ -73,13 +78,25 @@ while IFS= read -r dashboard_file; do
     type == "object" and
     (.uid | type == "string" and length > 0) and
     (.title | type == "string" and length > 0) and
-    (.panels | type == "array")
+    (.panels | type == "array" and length > 0) and
+    (all(.panels[];
+      (.id | type == "number") and
+      (.title | type == "string" and length > 0) and
+      (.targets | type == "array" and length > 0) and
+      all(.targets[]; .expr | type == "string" and length > 0)
+    )) and
+    (([.panels[].id] | unique | length) == (.panels | length))
   ' "$dashboard_file" >/dev/null
   dashboard_count=$((dashboard_count + 1))
 done < <(find "$repository_root/dashboards" -type f -name '*.json' -print)
 
 if (( dashboard_count == 0 )); then
   printf 'At least one Grafana dashboard is required.\n' >&2
+  exit 1
+fi
+
+if ! jq -s -e '([.[].uid] | unique | length) == length' "$repository_root"/dashboards/*.json >/dev/null; then
+  printf 'Grafana dashboard UIDs must be unique.\n' >&2
   exit 1
 fi
 
@@ -93,6 +110,31 @@ if docker compose version >/dev/null 2>&1; then
   printf 'validation-only\n' > "$temporary_secret"
   GRAFANA_ADMIN_PASSWORD_FILE="$temporary_secret" docker compose \
     --file "$repository_root/compose.yaml" config --quiet
+fi
+
+#==============================================================================
+# COMPONENT CONFIGURATION VALIDATION
+#==============================================================================
+
+if docker version >/dev/null 2>&1; then
+  docker run --rm \
+    --entrypoint /bin/promtool \
+    --volume "$repository_root/config/prometheus:/etc/prometheus:ro" \
+    prom/prometheus:v3.14.0 \
+    check config /etc/prometheus/prometheus.yml >/dev/null
+
+  docker run --rm \
+    --entrypoint /bin/amtool \
+    --volume "$repository_root/config/alertmanager:/etc/alertmanager:ro" \
+    prom/alertmanager:v0.34.0 \
+    check-config /etc/alertmanager/alertmanager.yml.template >/dev/null
+
+  docker run --rm \
+    --entrypoint /bin/blackbox_exporter \
+    --volume "$repository_root/config/blackbox:/etc/blackbox_exporter:ro" \
+    quay.io/prometheus/blackbox-exporter:v0.28.0 \
+    --config.file=/etc/blackbox_exporter/blackbox.yml \
+    --config.check >/dev/null
 fi
 
 #==============================================================================
@@ -132,6 +174,28 @@ if ! grep -Fq 'apt-get update >/dev/null' "$repository_root/scripts/install-dock
   ! grep -Fq 'docker version >/dev/null' "$repository_root/scripts/install-docker.sh" || \
   ! grep -Fq 'docker compose version >/dev/null' "$repository_root/scripts/install-docker.sh"; then
   printf 'Routine installer output must remain quiet so OCI retains readiness markers.\n' >&2
+  exit 1
+fi
+
+#==============================================================================
+# OCI BOOTSTRAP PAYLOAD VALIDATION
+#==============================================================================
+
+sample_arguments=$(jq -cn '[
+  "deploy",
+  "bharathadigopula/monitoring-stack-automation",
+  "v1.1.0",
+  "grafana.bharathcloudops.com",
+  "https://grafana.bharathcloudops.com",
+  "10.10.10.3",
+  "",
+  "AAAAAAAAAAAAAAAAAAAAAAAA",
+  "abcdefghijklmnop"
+]')
+argument_line=$(jq -r '[.[] | @sh] | "set -- " + join(" ")' <<< "$sample_arguments")
+rendered_size=$(printf '%s\n%s' "$argument_line" "$(cat "$repository_root/scripts/bootstrap.sh")" | wc -c | tr -d ' ')
+if (( rendered_size > 4096 )); then
+  printf 'Rendered monitoring bootstrap exceeds the OCI 4096-byte inline limit.\n' >&2
   exit 1
 fi
 

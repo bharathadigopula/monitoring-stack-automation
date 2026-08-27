@@ -1,0 +1,70 @@
+{
+  "annotations": {"list": []},
+  "editable": false,
+  "graphTooltip": 1,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}, "unit": "short"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 0, "y": 0},
+      "id": 1,
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
+      "targets": [{"expr": "sum(ALERTS{alertstate=\"firing\"}) or vector(0)", "legendFormat": "Firing", "refId": "A"}],
+      "title": "Firing Alerts",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1}]}, "unit": "short"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 8, "y": 0},
+      "id": 2,
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
+      "targets": [{"expr": "sum(ALERTS{alertstate=\"pending\"}) or vector(0)", "legendFormat": "Pending", "refId": "A"}],
+      "title": "Pending Alerts",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"mappings": [{"options": {"0": {"color": "red", "text": "Down"}, "1": {"color": "green", "text": "Up"}}, "type": "value"}]}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 0},
+      "id": 3,
+      "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
+      "targets": [{"expr": "up{job=\"alertmanager\"}", "legendFormat": "Alertmanager", "refId": "A"}],
+      "title": "Alertmanager",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 9, "w": 12, "x": 0, "y": 7},
+      "id": 4,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "ALERTS{alertstate=~\"firing|pending\"}", "legendFormat": "{{alertname}} / {{instance}} / {{severity}}", "refId": "A"}],
+      "title": "Alert State History",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 9, "w": 12, "x": 12, "y": 7},
+      "id": 5,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [
+        {"expr": "increase(alertmanager_notifications_total[1h])", "legendFormat": "Sent / {{integration}}", "refId": "A"},
+        {"expr": "increase(alertmanager_notifications_failed_total[1h])", "legendFormat": "Failed / {{integration}}", "refId": "B"}
+      ],
+      "title": "Notification Delivery",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "1m",
+  "schemaVersion": 41,
+  "tags": ["alerts", "alertmanager", "operations"],
+  "templating": {"list": []},
+  "time": {"from": "now-6h", "to": "now"},
+  "timezone": "browser",
+  "title": "Alert Operations",
+  "uid": "alert-operations",
+  "version": 1
+}

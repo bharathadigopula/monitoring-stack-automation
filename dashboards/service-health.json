@@ -10,8 +10,18 @@
       "gridPos": {"h": 9, "w": 24, "x": 0, "y": 0},
       "id": 1,
       "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "horizontal", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
-      "targets": [{"expr": "up", "legendFormat": "{{job}} / {{instance}}", "refId": "A"}],
-      "title": "Prometheus, Grafana, Cloudflare and Jenkins Targets",
+      "targets": [{"expr": "up{job!=\"blackbox\"}", "legendFormat": "{{job}} / {{instance}}", "refId": "A"}],
+      "title": "Prometheus Scrape Targets",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"mappings": [{"options": {"0": {"color": "red", "text": "Down"}, "1": {"color": "green", "text": "Up"}}, "type": "value"}], "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}}, "overrides": []},
+      "gridPos": {"h": 7, "w": 24, "x": 0, "y": 9},
+      "id": 2,
+      "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "horizontal", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
+      "targets": [{"expr": "probe_success{job=\"blackbox\"}", "legendFormat": "{{instance}}", "refId": "A"}],
+      "title": "External HTTPS Endpoints",
       "type": "stat"
     }
   ],

@@ -16,3 +16,17 @@ datasources:
     url: http://prometheus:9090
     isDefault: true
     editable: false
+
+  #============================================================================
+  # ALERTMANAGER DATASOURCE
+  #============================================================================
+
+  - name: Alertmanager
+    type: alertmanager
+    uid: alertmanager
+    access: proxy
+    url: http://alertmanager:9093
+    editable: false
+    jsonData:
+      implementation: prometheus
+      handleGrafanaManagedAlerts: false

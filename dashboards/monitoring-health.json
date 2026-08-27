@@ -57,7 +57,7 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "12.1.1",
+      "pluginVersion": "13.2.0",
       "targets": [
         {
           "editorMode": "code",
@@ -148,7 +148,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.1.1",
+      "pluginVersion": "13.2.0",
       "targets": [
         {
           "editorMode": "code",
@@ -159,6 +159,89 @@
         }
       ],
       "title": "Sample Ingestion Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 6, "w": 6, "x": 0, "y": 8},
+      "id": 3,
+      "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
+      "targets": [{"expr": "prometheus_tsdb_head_series", "legendFormat": "Active series", "refId": "A"}],
+      "title": "Active Time Series",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "bytes"}, "overrides": []},
+      "gridPos": {"h": 6, "w": 6, "x": 6, "y": 8},
+      "id": 4,
+      "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
+      "targets": [{"expr": "prometheus_tsdb_storage_blocks_bytes", "legendFormat": "TSDB blocks", "refId": "A"}],
+      "title": "TSDB Block Storage",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"mappings": [{"options": {"0": {"color": "red", "text": "Failed"}, "1": {"color": "green", "text": "Successful"}}, "type": "value"}]}, "overrides": []},
+      "gridPos": {"h": 6, "w": 6, "x": 12, "y": 8},
+      "id": 5,
+      "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
+      "targets": [{"expr": "prometheus_config_last_reload_successful", "legendFormat": "Configuration", "refId": "A"}],
+      "title": "Configuration Reload",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"mappings": [{"options": {"0": {"color": "red", "text": "Down"}, "1": {"color": "green", "text": "Up"}}, "type": "value"}]}, "overrides": []},
+      "gridPos": {"h": 6, "w": 6, "x": 18, "y": 8},
+      "id": 6,
+      "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
+      "targets": [{"expr": "up{job=\"alertmanager\"}", "legendFormat": "Alertmanager", "refId": "A"}],
+      "title": "Alertmanager Health",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 14},
+      "id": 7,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "scrape_duration_seconds", "legendFormat": "{{job}} / {{instance}}", "refId": "A"}],
+      "title": "Scrape Duration",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 14},
+      "id": 8,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "scrape_samples_scraped", "legendFormat": "{{job}} / {{instance}}", "refId": "A"}],
+      "title": "Samples Per Scrape",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 12, "x": 0, "y": 22},
+      "id": 9,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "increase(prometheus_rule_evaluation_failures_total[10m])", "legendFormat": "{{rule_group}}", "refId": "A"}],
+      "title": "Rule Evaluation Failures",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 12, "x": 12, "y": 22},
+      "id": 10,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [
+        {"expr": "increase(alertmanager_notifications_total[10m])", "legendFormat": "Sent / {{integration}}", "refId": "A"},
+        {"expr": "increase(alertmanager_notifications_failed_total[10m])", "legendFormat": "Failed / {{integration}}", "refId": "B"}
+      ],
+      "title": "Alert Notifications",
       "type": "timeseries"
     }
   ],

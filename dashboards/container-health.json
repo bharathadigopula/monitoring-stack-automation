@@ -23,6 +23,52 @@
       "targets": [{"expr": "container_memory_working_set_bytes{name!=\"\"}", "legendFormat": "{{name}}", "refId": "A"}],
       "title": "Container Memory",
       "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"max": 1, "min": 0, "unit": "percentunit"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 9},
+      "id": 3,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "name:container_memory_utilisation:ratio", "legendFormat": "{{name}}", "refId": "A"}],
+      "title": "Container Memory Limit Utilisation",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "Bps"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 9},
+      "id": 4,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [
+        {"expr": "sum by (name) (rate(container_network_receive_bytes_total{name!=\"\"}[5m]))", "legendFormat": "{{name}} receive", "refId": "A"},
+        {"expr": "sum by (name) (rate(container_network_transmit_bytes_total{name!=\"\"}[5m]))", "legendFormat": "{{name}} transmit", "refId": "B"}
+      ],
+      "title": "Container Network Throughput",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "Bps"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 17},
+      "id": 5,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [
+        {"expr": "sum by (name) (rate(container_fs_reads_bytes_total{name!=\"\"}[5m]))", "legendFormat": "{{name}} read", "refId": "A"},
+        {"expr": "sum by (name) (rate(container_fs_writes_bytes_total{name!=\"\"}[5m]))", "legendFormat": "{{name}} write", "refId": "B"}
+      ],
+      "title": "Container Disk Throughput",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 17},
+      "id": 6,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "time() - container_start_time_seconds{name!=\"\"}", "legendFormat": "{{name}}", "refId": "A"}],
+      "title": "Container Uptime",
+      "type": "timeseries"
     }
   ],
   "refresh": "1m",

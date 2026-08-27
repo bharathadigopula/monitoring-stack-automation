@@ -26,9 +26,12 @@ services:
 
     command:
       - --config.file=/etc/prometheus/prometheus.yml
+      - --query.max-concurrency=10
+      - --query.timeout=2m
       - --storage.tsdb.path=/prometheus
       - --storage.tsdb.retention.time=${PROMETHEUS_RETENTION_TIME:-7d}
       - --storage.tsdb.retention.size=${PROMETHEUS_RETENTION_SIZE:-8GB}
+      - --storage.tsdb.wal-compression
       - --web.enable-lifecycle
 
     #==========================================================================
@@ -51,6 +54,43 @@ services:
     volumes:
       - ./config/prometheus:/etc/prometheus:ro
       - prometheus-data:/prometheus
+
+  #============================================================================
+  # ALERTMANAGER SERVICE
+  #============================================================================
+
+  alertmanager:
+    image: prom/alertmanager:v0.34.0
+
+    #==========================================================================
+    # ALERTMANAGER RUNTIME
+    #==========================================================================
+
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+      - --cluster.listen-address=
+
+    #==========================================================================
+    # ALERTMANAGER RESOURCE LIMITS
+    #==========================================================================
+
+    deploy:
+      resources:
+        limits:
+          cpus: "0.05"
+          memory: 64M
+
+    #==========================================================================
+    # ALERTMANAGER NETWORK AND STORAGE
+    #==========================================================================
+
+    ports:
+      - 127.0.0.1:9093:9093
+    restart: unless-stopped
+    volumes:
+      - ./config/alertmanager/alertmanager.yml.template:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager-data:/alertmanager
 
   #============================================================================
   # GRAFANA SERVICE
@@ -82,11 +122,20 @@ services:
             #==========================================================================
 
     environment:
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
       GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana_admin_password
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_COOKIE_SAMESITE: strict
+      GF_SECURITY_COOKIE_SECURE: "true"
+      GF_SECURITY_DISABLE_GRAVATAR: "true"
       GF_SERVER_DOMAIN: ${GRAFANA_DOMAIN:-localhost}
+      GF_SERVER_ENABLE_GZIP: "true"
       GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-http://localhost:3000}
       GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_USERS_ALLOW_ORG_CREATE: "false"
 
     #==========================================================================
     # GRAFANA NETWORK, SECRETS, AND STORAGE
@@ -165,6 +214,40 @@ services:
       - /var/lib/docker:/var/lib/docker:ro
       - /var/run:/var/run:ro
 
+  #============================================================================
+  # BLACKBOX EXPORTER SERVICE
+  #============================================================================
+
+  blackbox-exporter:
+    image: quay.io/prometheus/blackbox-exporter:v0.28.0
+
+    #==========================================================================
+    # BLACKBOX EXPORTER RUNTIME
+    #==========================================================================
+
+    command:
+      - --config.file=/etc/blackbox_exporter/blackbox.yml
+
+    #==========================================================================
+    # BLACKBOX EXPORTER RESOURCE LIMITS
+    #==========================================================================
+
+    deploy:
+      resources:
+        limits:
+          cpus: "0.05"
+          memory: 64M
+
+    #==========================================================================
+    # BLACKBOX EXPORTER CONFIGURATION
+    #==========================================================================
+
+    ports:
+      - 127.0.0.1:9115:9115
+    restart: unless-stopped
+    volumes:
+      - ./config/blackbox:/etc/blackbox_exporter:ro
+
     #==============================================================================
     # STACK SECRETS
     #==============================================================================
@@ -178,5 +261,6 @@ secrets:
   #==============================================================================
 
 volumes:
+  alertmanager-data:
   grafana-data:
   prometheus-data:

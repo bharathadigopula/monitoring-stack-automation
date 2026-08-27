@@ -16,6 +16,7 @@ set -euo pipefail
 
 action="${1:-validate}"
 grafana_admin_password="${2:-}"
+smtp_app_password="${3:-}"
 source_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 install_root="${MONITORING_INSTALL_ROOT:-/opt/monitoring-stack}"
 release_ref="${AUTOMATION_REF:-local}"
@@ -60,6 +61,27 @@ EOF
 }
 
 #==============================================================================
+# ALERTMANAGER SECRET RENDERING
+#==============================================================================
+
+render_alertmanager_configuration() {
+  local configuration_file="$release_path/config/alertmanager/alertmanager.yml.template"
+
+  if [[ ! "$smtp_app_password" =~ ^[A-Za-z0-9]{16}$ ]]; then
+    printf 'A 16-character Gmail app password is required.\n' >&2
+    exit 1
+  fi
+
+  sed --in-place "s/__SMTP_APP_PASSWORD__/$smtp_app_password/" "$configuration_file"
+  if grep -Fq '__SMTP_APP_PASSWORD__' "$configuration_file"; then
+    printf 'Alertmanager SMTP configuration was not rendered.\n' >&2
+    exit 1
+  fi
+  chown 65534:65534 "$configuration_file"
+  chmod 0400 "$configuration_file"
+}
+
+#==============================================================================
 # STACK DEPLOYMENT
 #==============================================================================
 
@@ -67,6 +89,10 @@ deploy_stack() {
   require_root
   if [[ -z "$grafana_admin_password" || "$grafana_admin_password" == *$'\n'* ]]; then
     printf 'A single-line Grafana administrator password is required.\n' >&2
+    exit 1
+  fi
+  if [[ ! "$smtp_app_password" =~ ^[A-Za-z0-9]{16}$ ]]; then
+    printf 'A 16-character Gmail app password is required.\n' >&2
     exit 1
   fi
 
@@ -80,6 +106,7 @@ deploy_stack() {
   printf '%s\n' "$grafana_admin_password" > "$release_path/secrets/grafana-admin-password"
   chown 472:472 "$release_path/secrets/grafana-admin-password"
   chmod 0400 "$release_path/secrets/grafana-admin-password"
+  render_alertmanager_configuration
   write_environment
 
   if [[ -L "$install_root/current" ]]; then
@@ -88,9 +115,12 @@ deploy_stack() {
 
   ln -sfn "$release_path" "$install_root/current"
   install -m 0644 "$release_path/systemd/monitoring-stack.service" /etc/systemd/system/monitoring-stack.service
+  install -m 0644 "$release_path/systemd/monitoring-stack-backup.service" /etc/systemd/system/monitoring-stack-backup.service
+  install -m 0644 "$release_path/systemd/monitoring-stack-backup.timer" /etc/systemd/system/monitoring-stack-backup.timer
   systemctl daemon-reload
   systemctl enable monitoring-stack.service
   systemctl restart monitoring-stack.service
+  systemctl enable --now monitoring-stack-backup.timer
   verify_stack
   printf 'monitoring_deploy=ready\n'
 }
@@ -121,6 +151,8 @@ wait_for_endpoint() {
 
 verify_stack() {
   wait_for_endpoint prometheus http://127.0.0.1:9090/-/ready
+  wait_for_endpoint alertmanager http://127.0.0.1:9093/-/ready
+  wait_for_endpoint blackbox-exporter http://127.0.0.1:9115/-/healthy
   wait_for_endpoint grafana "http://${MONITORING_BIND_ADDRESS:-127.0.0.1}:3000/api/health"
   printf 'monitoring_verify=ready\n'
 }
@@ -141,29 +173,47 @@ show_stack_status() {
     --file "$install_root/current/compose.yaml" \
     logs --tail 20 || true
   printf 'prometheus_http_code=%s\n' "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:9090/-/ready || true)"
+  printf 'alertmanager_http_code=%s\n' "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:9093/-/ready || true)"
+  printf 'blackbox_http_code=%s\n' "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:9115/-/healthy || true)"
   printf 'grafana_http_code=%s\n' "$(curl --silent --output /dev/null --write-out '%{http_code}' "http://${MONITORING_BIND_ADDRESS:-127.0.0.1}:3000/api/health" || true)"
 }
 
 #==============================================================================
-# GRAFANA BACKUP
+# MONITORING STATE BACKUP
 #==============================================================================
 
 backup_stack() {
   require_root
   install -d -m 0700 "$backup_directory"
-  archive_path="$backup_directory/grafana-$(date -u +%Y%m%dT%H%M%SZ).tar.gz"
-  volume_path=$(docker volume inspect monitoring-stack_grafana-data --format '{{ .Mountpoint }}')
+  archive_path="$backup_directory/monitoring-$(date -u +%Y%m%dT%H%M%SZ).tar.gz"
+  staging_directory=$(mktemp -d "$backup_directory/.backup.XXXXXX")
+  grafana_volume_path=$(docker volume inspect monitoring-stack_grafana-data --format '{{ .Mountpoint }}')
+  prometheus_volume_path=$(docker volume inspect monitoring-stack_prometheus-data --format '{{ .Mountpoint }}')
+  alertmanager_volume_path=$(docker volume inspect monitoring-stack_alertmanager-data --format '{{ .Mountpoint }}')
+
+  backup_cleanup() {
+    systemctl start monitoring-stack.service || true
+    rm -rf "$staging_directory"
+  }
+
   systemctl stop monitoring-stack.service
-  trap 'systemctl start monitoring-stack.service' EXIT
-  tar --create --gzip --file "$archive_path" --directory "$volume_path" .
+  trap backup_cleanup EXIT
+  tar --create --gzip --file "$staging_directory/grafana.tar.gz" --directory "$grafana_volume_path" .
+  tar --create --gzip --file "$staging_directory/prometheus.tar.gz" --directory "$prometheus_volume_path" .
+  tar --create --gzip --file "$staging_directory/alertmanager.tar.gz" --directory "$alertmanager_volume_path" .
+  printf 'release=%s\ncreated_at=%s\n' "$release_ref" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$staging_directory/manifest.txt"
+  tar --create --gzip --file "$archive_path" --directory "$staging_directory" .
   chmod 0600 "$archive_path"
   systemctl start monitoring-stack.service
+  rm -rf "$staging_directory"
   trap - EXIT
+  find "$backup_directory" -maxdepth 1 -type f -name 'monitoring-*.tar.gz' -mtime +7 -delete
   printf 'monitoring_backup=%s\n' "$archive_path"
+  printf 'monitoring_backup=ready\n'
 }
 
 #==============================================================================
-# GRAFANA RESTORE
+# MONITORING STATE RESTORE
 #==============================================================================
 
 restore_stack() {
@@ -173,12 +223,35 @@ restore_stack() {
     printf 'MONITORING_RESTORE_ARCHIVE must identify an existing backup.\n' >&2
     exit 1
   fi
-  volume_path=$(docker volume inspect monitoring-stack_grafana-data --format '{{ .Mountpoint }}')
+  staging_directory=$(mktemp -d "$backup_directory/.restore.XXXXXX")
+  tar --extract --gzip --file "$archive_path" --directory "$staging_directory"
+  for component in grafana prometheus alertmanager; do
+    if [[ ! -f "$staging_directory/$component.tar.gz" ]]; then
+      printf 'Backup archive is missing %s state.\n' "$component" >&2
+      rm -rf "$staging_directory"
+      exit 1
+    fi
+  done
+
+  grafana_volume_path=$(docker volume inspect monitoring-stack_grafana-data --format '{{ .Mountpoint }}')
+  prometheus_volume_path=$(docker volume inspect monitoring-stack_prometheus-data --format '{{ .Mountpoint }}')
+  alertmanager_volume_path=$(docker volume inspect monitoring-stack_alertmanager-data --format '{{ .Mountpoint }}')
+
+  restore_cleanup() {
+    systemctl start monitoring-stack.service || true
+    rm -rf "$staging_directory"
+  }
+
   systemctl stop monitoring-stack.service
-  trap 'systemctl start monitoring-stack.service' EXIT
-  find "$volume_path" -mindepth 1 -delete
-  tar --extract --gzip --file "$archive_path" --directory "$volume_path"
+  trap restore_cleanup EXIT
+  find "$grafana_volume_path" -mindepth 1 -delete
+  find "$prometheus_volume_path" -mindepth 1 -delete
+  find "$alertmanager_volume_path" -mindepth 1 -delete
+  tar --extract --gzip --file "$staging_directory/grafana.tar.gz" --directory "$grafana_volume_path"
+  tar --extract --gzip --file "$staging_directory/prometheus.tar.gz" --directory "$prometheus_volume_path"
+  tar --extract --gzip --file "$staging_directory/alertmanager.tar.gz" --directory "$alertmanager_volume_path"
   systemctl start monitoring-stack.service
+  rm -rf "$staging_directory"
   trap - EXIT
   verify_stack
   printf 'monitoring_restore=ready\n'
@@ -235,7 +308,7 @@ case "$action" in
     rollback_stack
     ;;
   *)
-    printf 'Usage: %s validate|dry-run|deploy|upgrade|verify|status|backup|restore|rollback [grafana-password]\n' "$0" >&2
+    printf 'Usage: %s validate|dry-run|deploy|upgrade|verify|status|backup|restore|rollback [grafana-password] [smtp-app-password]\n' "$0" >&2
     exit 2
     ;;
 esac
