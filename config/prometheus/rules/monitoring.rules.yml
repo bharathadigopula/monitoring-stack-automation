@@ -61,7 +61,7 @@ groups:
           severity: critical
         annotations:
           summary: External endpoint {{ $labels.instance }} is unavailable
-          description: The HTTPS probe has failed continuously for more than three minutes.
+          description: The endpoint probe has failed continuously for more than three minutes.
 
       - alert: TLSCertificateExpiringSoon
         expr: probe_ssl_earliest_cert_expiry{job="blackbox"} - time() < 1209600
@@ -93,6 +93,15 @@ groups:
         annotations:
           summary: Cloudflare Tunnel has no active edge connections
           description: The connector has reported no healthy edge connection for five minutes.
+
+      - alert: CloudflareTunnelOriginErrors
+        expr: sum by (instance) (increase(cloudflared_tunnel_response_by_code{code=~"5.."}[5m])) > 0 or sum by (instance) (increase(cloudflared_tunnel_request_errors[5m])) > 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Cloudflare Tunnel is returning origin errors
+          description: Connector {{ $labels.instance }} has returned HTTP 5xx responses or origin request errors during the last five minutes.
 
       #==========================================================================
       # HOST CPU ALERT

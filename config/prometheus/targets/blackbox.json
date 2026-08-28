@@ -8,5 +8,15 @@
       "environment": "prd",
       "probe": "https"
     }
+  },
+  {
+    "targets": [
+      "http://10.10.10.68:8080/login"
+    ],
+    "labels": {
+      "environment": "prd",
+      "probe": "origin",
+      "service": "jenkins"
+    }
   }
 ]
