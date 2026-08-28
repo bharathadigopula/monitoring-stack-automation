@@ -51,6 +51,28 @@ groups:
           description: Target {{ $labels.instance }} has been unreachable for more than five minutes.
 
       #==========================================================================
+      # JENKINS CONTROLLER ALERTS
+      #==========================================================================
+
+      - alert: JenkinsControllerNotReady
+        expr: default_jenkins_up{job="jenkins"} == 0
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: Jenkins controller is not ready
+          description: Jenkins metrics are reachable, but the controller has not been ready for three minutes.
+
+      - alert: JenkinsQueueBlocked
+        expr: default_jenkins_executors_queue_length{job="jenkins"} > 0 and default_jenkins_executors_available{job="jenkins"} < 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Jenkins build queue has no available executor
+          description: Jenkins has runnable work waiting without an available executor for ten minutes.
+
+      #==========================================================================
       # EXTERNAL ENDPOINT ALERTS
       #==========================================================================
 

@@ -20,8 +20,8 @@
       "gridPos": {"h": 7, "w": 24, "x": 0, "y": 9},
       "id": 2,
       "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "horizontal", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
-      "targets": [{"expr": "probe_success{job=\"blackbox\"}", "legendFormat": "{{instance}}", "refId": "A"}],
-      "title": "External HTTPS Endpoints",
+      "targets": [{"expr": "probe_success{job=\"blackbox\"}", "legendFormat": "{{service}}", "refId": "A"}],
+      "title": "Service Endpoints",
       "type": "stat"
     }
   ],

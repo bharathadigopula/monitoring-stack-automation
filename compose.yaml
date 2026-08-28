@@ -53,6 +53,7 @@ services:
     restart: unless-stopped
     volumes:
       - ./config/prometheus:/etc/prometheus:ro
+      - ./secrets/jenkins-admin-password:/run/secrets/jenkins-admin-password:ro
       - prometheus-data:/prometheus
 
   #============================================================================
@@ -156,7 +157,7 @@ services:
   #============================================================================
 
   node-exporter:
-    image: quay.io/prometheus/node-exporter:v1.9.1
+    image: quay.io/prometheus/node-exporter:v1.12.1
 
     #==========================================================================
     # NODE EXPORTER RUNTIME
@@ -189,7 +190,7 @@ services:
   #============================================================================
 
   cadvisor:
-    image: gcr.io/cadvisor/cadvisor:v0.52.1
+    image: ghcr.io/google/cadvisor:v0.60.5
 
     #==========================================================================
     # CADVISOR RESOURCE LIMITS
