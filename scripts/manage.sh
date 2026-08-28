@@ -279,7 +279,7 @@ verify_stack() {
   printf 'monitoring_services=ready\n'
 
   wait_for_prometheus_targets
-  wait_for_prometheus_query external_probes 'probe_success{job="blackbox"} == 1' 2
+  wait_for_prometheus_query external_probes 'probe_success{job="blackbox"} == 1' 3
   wait_for_prometheus_query cloudflared_connections 'cloudflared_tunnel_ha_connections > 0' 1
   wait_for_prometheus_query alertmanager_discovery 'prometheus_notifications_alertmanagers_discovered > 0' 1
 
