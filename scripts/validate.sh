@@ -32,6 +32,7 @@ required_files=(
   config/grafana/provisioning/datasources/datasource.yml
   config/grafana/provisioning/dashboards/default.yml
   dashboards/monitoring-health.json
+  scripts/check-latest-versions.sh
   systemd/monitoring-stack-backup.service
   systemd/monitoring-stack-backup.timer
 )
@@ -67,6 +68,30 @@ for target_file in "$repository_root"/config/prometheus/targets/*.json; do
     )
   ' "$target_file" >/dev/null
 done
+
+if ! jq -e '
+  length == 1 and
+  .[0].targets == ["10.10.10.68:8080"] and
+  .[0].labels.service == "jenkins"
+' "$repository_root/config/prometheus/targets/jenkins.json" >/dev/null; then
+  printf 'Production Jenkins metrics target must be configured.\n' >&2
+  exit 1
+fi
+
+if ! jq -e '
+  ([.[].labels.service] | sort) == ["Cloudflare Access", "Grafana", "Jenkins origin"]
+' "$repository_root/config/prometheus/targets/blackbox.json" >/dev/null; then
+  printf 'Blackbox targets must use the expected service labels.\n' >&2
+  exit 1
+fi
+
+if ! grep -Fq 'password_file: /run/secrets/jenkins-admin-password' \
+  "$repository_root/config/prometheus/prometheus.yml" || \
+  ! grep -Fq './secrets/jenkins-admin-password:/run/secrets/jenkins-admin-password:ro' \
+    "$repository_root/compose.yaml"; then
+  printf 'Jenkins metrics must use the mounted password file.\n' >&2
+  exit 1
+fi
 
 #==============================================================================
 # GRAFANA DASHBOARD VALIDATION
@@ -171,6 +196,12 @@ if ! grep -Fq "chown 472:472 \"\$release_path/secrets/grafana-admin-password\"" 
   exit 1
 fi
 
+if ! grep -Fq "chown 65534:65534 \"\$password_file\"" "$repository_root/scripts/manage.sh" || \
+  ! grep -Fq "chmod 0400 \"\$password_file\"" "$repository_root/scripts/manage.sh"; then
+  printf 'Jenkins metrics password must be readable only by Prometheus UID 65534.\n' >&2
+  exit 1
+fi
+
 #==============================================================================
 # SYSTEMD RELEASE ACTIVATION VALIDATION
 #==============================================================================
@@ -214,7 +245,8 @@ sample_arguments=$(jq -cn '[
   "10.10.10.3",
   "",
   "AAAAAAAAAAAAAAAAAAAAAAAA",
-  "abcdefghijklmnop"
+  "abcdefghijklmnop",
+  ({admin_password: ("J" * 180)} | tojson)
 ]')
 argument_line=$(jq -r '[.[] | @sh] | "set -- " + join(" ")' <<< "$sample_arguments")
 rendered_size=$(printf '%s\n%s' "$argument_line" "$(cat "$repository_root/scripts/bootstrap.sh")" | wc -c | tr -d ' ')

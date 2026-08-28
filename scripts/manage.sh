@@ -17,6 +17,7 @@ set -euo pipefail
 action="${1:-validate}"
 grafana_admin_password="${2:-}"
 smtp_app_password="${3:-}"
+jenkins_secret_bundle="${4:-}"
 source_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 install_root="${MONITORING_INSTALL_ROOT:-/opt/monitoring-stack}"
 release_ref="${AUTOMATION_REF:-local}"
@@ -82,6 +83,26 @@ render_alertmanager_configuration() {
 }
 
 #==============================================================================
+# JENKINS METRICS SECRET RENDERING
+#==============================================================================
+
+render_jenkins_metrics_secret() {
+  local password_file="$release_path/secrets/jenkins-admin-password"
+
+  if ! jq -e '
+    type == "object" and
+    (.admin_password | type == "string" and length >= 16 and (contains("\n") | not))
+  ' <<< "$jenkins_secret_bundle" >/dev/null; then
+    printf 'Jenkins secret bundle must contain a valid admin_password.\n' >&2
+    exit 1
+  fi
+
+  jq -r '.admin_password' <<< "$jenkins_secret_bundle" > "$password_file"
+  chown 65534:65534 "$password_file"
+  chmod 0400 "$password_file"
+}
+
+#==============================================================================
 # STACK DEPLOYMENT
 #==============================================================================
 
@@ -93,6 +114,13 @@ deploy_stack() {
   fi
   if [[ ! "$smtp_app_password" =~ ^[A-Za-z0-9]{16}$ ]]; then
     printf 'A 16-character Gmail app password is required.\n' >&2
+    exit 1
+  fi
+  if ! jq -e '
+    type == "object" and
+    (.admin_password | type == "string" and length >= 16 and (contains("\n") | not))
+  ' <<< "$jenkins_secret_bundle" >/dev/null; then
+    printf 'Jenkins secret bundle must contain a valid admin_password.\n' >&2
     exit 1
   fi
 
@@ -107,6 +135,7 @@ deploy_stack() {
   chown 472:472 "$release_path/secrets/grafana-admin-password"
   chmod 0400 "$release_path/secrets/grafana-admin-password"
   render_alertmanager_configuration
+  render_jenkins_metrics_secret
   write_environment
 
   if [[ -L "$install_root/current" ]]; then
@@ -214,11 +243,11 @@ verify_prometheus_targets() {
   response=$(curl --fail --silent --show-error http://127.0.0.1:9090/api/v1/targets)
   if ! jq -e '
     .status == "success" and
-    (["alertmanager", "blackbox-exporter", "cadvisor", "cloudflared", "grafana", "node", "prometheus"] -
+    (["alertmanager", "blackbox-exporter", "cadvisor", "cloudflared", "grafana", "jenkins", "node", "prometheus"] -
       ([.data.activeTargets[].labels.job] | unique) | length) == 0 and
     ([
       .data.activeTargets[] |
-      select(.labels.job | test("^(prometheus|node|cadvisor|grafana|alertmanager|blackbox-exporter|cloudflared)$")) |
+      select(.labels.job | test("^(prometheus|node|cadvisor|grafana|alertmanager|blackbox-exporter|cloudflared|jenkins)$")) |
       select(.health != "up")
     ] | length) == 0
   ' <<< "$response" >/dev/null; then
@@ -231,7 +260,7 @@ verify_prometheus_targets() {
     ' <<< "$response" >&2
     jq -r '
       .data.activeTargets[] |
-      select(.labels.job | test("^(prometheus|node|cadvisor|grafana|alertmanager|blackbox-exporter|cloudflared)$")) |
+      select(.labels.job | test("^(prometheus|node|cadvisor|grafana|alertmanager|blackbox-exporter|cloudflared|jenkins)$")) |
       select(.health != "up") |
       "prometheus_target_failure=" + .labels.job + "/" + .labels.instance + ":" + .health + ":" +
       (.lastError | gsub("[\\r\\n]"; " "))
@@ -281,6 +310,7 @@ verify_stack() {
   wait_for_prometheus_targets
   wait_for_prometheus_query external_probes 'probe_success{job="blackbox"} == 1' 3
   wait_for_prometheus_query cloudflared_connections 'cloudflared_tunnel_ha_connections > 0' 1
+  wait_for_prometheus_query jenkins_controller 'default_jenkins_up{job="jenkins"} == 1' 1
   wait_for_prometheus_query alertmanager_discovery 'prometheus_notifications_alertmanagers_discovered > 0' 1
 
   rules=$(curl --fail --silent --show-error http://127.0.0.1:9090/api/v1/rules)
@@ -298,8 +328,8 @@ verify_stack() {
   printf 'alertmanager_status=ready\n'
 
   dashboard_count=$(find "$install_root/current/dashboards" -maxdepth 1 -type f -name '*.json' | wc -l | tr -d ' ')
-  if (( dashboard_count != 7 )); then
-    printf 'Expected seven provisioned dashboards, found %s.\n' "$dashboard_count" >&2
+  if (( dashboard_count != 8 )); then
+    printf 'Expected eight provisioned dashboards, found %s.\n' "$dashboard_count" >&2
     return 1
   fi
   printf 'grafana_dashboards=ready\n'

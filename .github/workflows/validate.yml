@@ -13,6 +13,8 @@ name: Validate monitoring automation
 #==============================================================================
 
 on:
+  schedule:
+    - cron: "29 3 * * *"
   pull_request:
   push:
     branches:
@@ -52,6 +54,9 @@ jobs:
 
       - name: Validate monitoring configuration
         run: bash scripts/validate.sh
+
+      - name: Verify latest version pins
+        run: bash scripts/check-latest-versions.sh
 
       - name: Validate dry run
         run: bash scripts/manage.sh dry-run

@@ -1,12 +1,22 @@
 [
   {
     "targets": [
-      "https://grafana.bharathcloudops.com",
+      "https://grafana.bharathcloudops.com"
+    ],
+    "labels": {
+      "environment": "prd",
+      "probe": "https",
+      "service": "Grafana"
+    }
+  },
+  {
+    "targets": [
       "https://bharathcloudops.cloudflareaccess.com"
     ],
     "labels": {
       "environment": "prd",
-      "probe": "https"
+      "probe": "https",
+      "service": "Cloudflare Access"
     }
   },
   {
@@ -16,7 +26,7 @@
     "labels": {
       "environment": "prd",
       "probe": "origin",
-      "service": "jenkins"
+      "service": "Jenkins origin"
     }
   }
 ]

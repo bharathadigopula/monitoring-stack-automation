@@ -1,1 +1,12 @@
-[]
+[
+	{
+		"targets": [
+			"10.10.10.68:8080"
+		],
+		"labels": {
+			"environment": "prd",
+			"instance": "jenkins-controller",
+			"service": "jenkins"
+		}
+	}
+]
