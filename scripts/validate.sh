@@ -155,23 +155,39 @@ run_quietly() {
 }
 
 if docker version >/dev/null 2>&1; then
+  jenkins_container_id=${JENKINS_CONTAINER_ID:-${HOSTNAME:-}}
+  prometheus_config=/etc/prometheus/prometheus.yml
+  alertmanager_config=/etc/alertmanager/alertmanager.yml.template
+  blackbox_config=/etc/blackbox_exporter/blackbox.yml
+  prometheus_mount=(--volume "$repository_root/config/prometheus:/etc/prometheus:ro")
+  alertmanager_mount=(--volume "$repository_root/config/alertmanager:/etc/alertmanager:ro")
+  blackbox_mount=(--volume "$repository_root/config/blackbox:/etc/blackbox_exporter:ro")
+  if [[ -n "$jenkins_container_id" ]] && docker inspect "$jenkins_container_id" >/dev/null 2>&1; then
+    prometheus_config="$repository_root/config/prometheus/prometheus.yml"
+    alertmanager_config="$repository_root/config/alertmanager/alertmanager.yml.template"
+    blackbox_config="$repository_root/config/blackbox/blackbox.yml"
+    prometheus_mount=(--volumes-from "$jenkins_container_id")
+    alertmanager_mount=(--volumes-from "$jenkins_container_id")
+    blackbox_mount=(--volumes-from "$jenkins_container_id")
+  fi
+
   run_quietly docker run --rm \
     --entrypoint /bin/promtool \
-    --volume "$repository_root/config/prometheus:/etc/prometheus:ro" \
+    "${prometheus_mount[@]}" \
     prom/prometheus:v3.14.0 \
-    check config /etc/prometheus/prometheus.yml
+    check config "$prometheus_config"
 
   run_quietly docker run --rm \
     --entrypoint /bin/amtool \
-    --volume "$repository_root/config/alertmanager:/etc/alertmanager:ro" \
+    "${alertmanager_mount[@]}" \
     prom/alertmanager:v0.34.0 \
-    check-config /etc/alertmanager/alertmanager.yml.template
+    check-config "$alertmanager_config"
 
   run_quietly docker run --rm \
     --entrypoint /bin/blackbox_exporter \
-    --volume "$repository_root/config/blackbox:/etc/blackbox_exporter:ro" \
+    "${blackbox_mount[@]}" \
     quay.io/prometheus/blackbox-exporter:v0.28.0 \
-    --config.file=/etc/blackbox_exporter/blackbox.yml \
+    --config.file="$blackbox_config" \
     --config.check
 fi
 
