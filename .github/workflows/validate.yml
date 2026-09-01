@@ -1,0 +1,65 @@
+#==============================================================================
+# MONITORING AUTOMATION VALIDATION
+#==============================================================================
+
+#==============================================================================
+# WORKFLOW IDENTITY
+#==============================================================================
+
+name: Validate monitoring automation
+
+#==============================================================================
+# WORKFLOW TRIGGERS
+#==============================================================================
+
+on:
+  schedule:
+    - cron: "29 3 * * *"
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+#==============================================================================
+# WORKFLOW PERMISSIONS
+#==============================================================================
+
+permissions:
+  contents: read
+
+#==============================================================================
+# WORKFLOW CONCURRENCY
+#==============================================================================
+
+concurrency:
+  group: monitoring-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+#==============================================================================
+# VALIDATION JOB
+#==============================================================================
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Validate Bash
+        run: shellcheck scripts/*.sh
+
+      - name: Validate monitoring configuration
+        run: bash scripts/validate.sh
+
+      - name: Verify latest version pins
+        run: bash scripts/check-latest-versions.sh
+
+      - name: Validate dry run
+        run: bash scripts/manage.sh dry-run
+
+      - name: Validate bootstrap payload size
+        run: test "$(wc -c < scripts/bootstrap.sh)" -le 4096
