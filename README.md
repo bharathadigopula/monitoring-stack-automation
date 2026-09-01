@@ -63,6 +63,8 @@ bash scripts/install-docker.sh dry-run
 
 When Docker is available, validation renders the complete Compose model and runs the pinned Prometheus, Alertmanager, and Blackbox Exporter native validators. Every dashboard is checked for valid JSON, a stable UID, a title, panels, target expressions, and unique panel identifiers. Validation also fails when the rendered bootstrap would exceed OCI Run Command's 4,096-byte inline limit.
 
+Jenkins reads `.jenkins/pipelines/validate.groovy` with `jenkins-pipeline-templates v1.4.0` and publishes the required `continuous-integration/jenkins` check. The retained GitHub Actions validation workflow runs on pull requests, `main`, its daily schedule, or manual dispatch. Production lifecycle operations remain explicit Jenkins actions; the GitHub recovery workflow is manual-only.
+
 <!--
 ==============================================================================
 VERSIONED DEPLOYMENT
