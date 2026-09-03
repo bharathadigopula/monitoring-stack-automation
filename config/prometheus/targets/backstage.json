@@ -1,0 +1,12 @@
+[
+  {
+    "targets": [
+      "http://10.10.10.3:7007/.backstage/health/v1/readiness"
+    ],
+    "labels": {
+      "environment": "prd",
+      "probe": "readiness",
+      "service": "backstage"
+    }
+  }
+]

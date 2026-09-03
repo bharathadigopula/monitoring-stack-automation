@@ -1,0 +1,12 @@
+[
+  {
+    "targets": [
+      "10.10.10.3:9187"
+    ],
+    "labels": {
+      "database": "backstage",
+      "environment": "prd",
+      "service": "backstage-postgresql"
+    }
+  }
+]

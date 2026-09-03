@@ -110,6 +110,46 @@ scrape_configs:
         replacement: blackbox-exporter:9115
 
           #============================================================================
+          # BACKSTAGE READINESS PROBE
+          #============================================================================
+
+  - job_name: backstage-health
+    metrics_path: /probe
+    params:
+      module:
+        - http_2xx
+    file_sd_configs:
+      - files:
+          - /etc/prometheus/targets/backstage.json
+    relabel_configs:
+      - source_labels:
+          - __address__
+        target_label: __param_target
+      - source_labels:
+          - __param_target
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+          #============================================================================
+          # BACKSTAGE POSTGRESQL METRICS
+          #============================================================================
+
+  - job_name: backstage-postgres
+    file_sd_configs:
+      - files:
+          - /etc/prometheus/targets/backstage-postgres.json
+
+          #============================================================================
+          # BACKSTAGE BACKUP METRICS
+          #============================================================================
+
+  - job_name: backstage-backup
+    file_sd_configs:
+      - files:
+          - /etc/prometheus/targets/backstage-backup.json
+
+          #============================================================================
           # CLOUDFLARE CONNECTOR METRICS
           #============================================================================
 
