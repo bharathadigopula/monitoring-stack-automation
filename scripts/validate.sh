@@ -26,12 +26,16 @@ required_files=(
   config/blackbox/blackbox.yml
   config/prometheus/prometheus.yml
   config/prometheus/rules/monitoring.rules.yml
+  config/prometheus/targets/backstage-backup.json
+  config/prometheus/targets/backstage-postgres.json
+  config/prometheus/targets/backstage.json
   config/prometheus/targets/blackbox.json
   config/prometheus/targets/cloudflared.json
   config/prometheus/targets/jenkins.json
   config/grafana/provisioning/datasources/datasource.yml
   config/grafana/provisioning/dashboards/default.yml
   dashboards/monitoring-health.json
+  dashboards/backstage-platform.json
   scripts/check-latest-versions.sh
   systemd/monitoring-stack-backup.service
   systemd/monitoring-stack-backup.timer
@@ -75,6 +79,30 @@ if ! jq -e '
   .[0].labels.service == "jenkins"
 ' "$repository_root/config/prometheus/targets/jenkins.json" >/dev/null; then
   printf 'Production Jenkins metrics target must be configured.\n' >&2
+  exit 1
+fi
+
+if ! jq -e '
+  length == 1 and
+  .[0].targets == ["http://10.10.10.3:7007/.backstage/health/v1/readiness"] and
+  .[0].labels.service == "backstage"
+' "$repository_root/config/prometheus/targets/backstage.json" >/dev/null || \
+  ! jq -e '
+    length == 1 and
+    .[0].targets == ["10.10.10.3:9187"] and
+    .[0].labels.service == "backstage-postgresql"
+  ' "$repository_root/config/prometheus/targets/backstage-postgres.json" >/dev/null; then
+  printf 'Backstage readiness and PostgreSQL targets must be configured.\n' >&2
+  exit 1
+fi
+
+if ! jq -e '
+  length == 1 and
+  .[0].targets == ["10.10.10.3:9101"] and
+  .[0].labels.service == "backstage-backup"
+' "$repository_root/config/prometheus/targets/backstage-backup.json" >/dev/null || \
+  ! grep -Fq 'backstage_backup_last_success_timestamp_seconds' "$repository_root/config/prometheus/rules/monitoring.rules.yml"; then
+  printf 'Backstage backup freshness monitoring must be configured.\n' >&2
   exit 1
 fi
 

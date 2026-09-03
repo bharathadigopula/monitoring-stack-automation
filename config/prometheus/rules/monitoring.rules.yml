@@ -73,6 +73,46 @@ groups:
           description: Jenkins has runnable work waiting without an available executor for ten minutes.
 
       #==========================================================================
+      # BACKSTAGE PLATFORM ALERTS
+      #==========================================================================
+
+      - alert: BackstageNotReady
+        expr: probe_success{job="backstage-health"} == 0
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: Backstage is not ready
+          description: The BharathCoudOps Backstage readiness endpoint has failed for three minutes.
+
+      - alert: BackstagePostgreSQLDown
+        expr: pg_up{job="backstage-postgres"} == 0
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: Backstage PostgreSQL is unavailable
+          description: The Backstage PostgreSQL exporter cannot connect to the database.
+
+      - alert: BackstagePostgreSQLConnectionPressure
+        expr: sum(pg_stat_activity_count{job="backstage-postgres"}) / max(pg_settings_max_connections{job="backstage-postgres"}) > 0.8
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Backstage PostgreSQL connections exceed 80 percent
+          description: Backstage PostgreSQL has sustained high connection utilisation for ten minutes.
+
+      - alert: BackstageBackupStale
+        expr: absent(backstage_backup_last_success_timestamp_seconds{job="backstage-backup"}) or time() - backstage_backup_last_success_timestamp_seconds{job="backstage-backup"} > 86400
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: Backstage backup is stale
+          description: No successful Backstage PostgreSQL backup has been recorded within 24 hours.
+
+      #==========================================================================
       # EXTERNAL ENDPOINT ALERTS
       #==========================================================================
 
