@@ -153,6 +153,12 @@ if ! jq -s -e '([.[].uid] | unique | length) == length' "$repository_root"/dashb
   exit 1
 fi
 
+if ! grep -Fq 'dashboard_count != 9' "$repository_root/scripts/manage.sh" || \
+  ! grep -Fq 'Expected nine provisioned dashboards' "$repository_root/scripts/manage.sh"; then
+  printf 'Runtime verification must require all nine Grafana dashboards.\n' >&2
+  exit 1
+fi
+
 #==============================================================================
 # DOCKER COMPOSE VALIDATION
 #==============================================================================
