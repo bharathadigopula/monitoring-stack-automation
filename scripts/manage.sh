@@ -243,11 +243,11 @@ verify_prometheus_targets() {
   response=$(curl --fail --silent --show-error http://127.0.0.1:9090/api/v1/targets)
   if ! jq -e '
     .status == "success" and
-    (["alertmanager", "blackbox-exporter", "cadvisor", "cloudflared", "grafana", "jenkins", "node", "prometheus"] -
+    (["alertmanager", "backstage-backup", "backstage-health", "backstage-postgres", "blackbox-exporter", "cadvisor", "cloudflared", "grafana", "jenkins", "node", "prometheus"] -
       ([.data.activeTargets[].labels.job] | unique) | length) == 0 and
     ([
       .data.activeTargets[] |
-      select(.labels.job | test("^(prometheus|node|cadvisor|grafana|alertmanager|blackbox-exporter|cloudflared|jenkins)$")) |
+      select(.labels.job | test("^(prometheus|node|cadvisor|grafana|alertmanager|blackbox-exporter|cloudflared|jenkins|backstage-health|backstage-postgres|backstage-backup)$")) |
       select(.health != "up")
     ] | length) == 0
   ' <<< "$response" >/dev/null; then
@@ -260,7 +260,7 @@ verify_prometheus_targets() {
     ' <<< "$response" >&2
     jq -r '
       .data.activeTargets[] |
-      select(.labels.job | test("^(prometheus|node|cadvisor|grafana|alertmanager|blackbox-exporter|cloudflared|jenkins)$")) |
+      select(.labels.job | test("^(prometheus|node|cadvisor|grafana|alertmanager|blackbox-exporter|cloudflared|jenkins|backstage-health|backstage-postgres|backstage-backup)$")) |
       select(.health != "up") |
       "prometheus_target_failure=" + .labels.job + "/" + .labels.instance + ":" + .health + ":" +
       (.lastError | gsub("[\\r\\n]"; " "))
@@ -309,6 +309,9 @@ verify_stack() {
 
   wait_for_prometheus_targets
   wait_for_prometheus_query external_probes 'probe_success{job="blackbox"} == 1' 3
+  wait_for_prometheus_query backstage_readiness 'probe_success{job="backstage-health"} == 1' 1
+  wait_for_prometheus_query backstage_postgresql 'pg_up{job="backstage-postgres"} == 1' 1
+  wait_for_prometheus_query backstage_backup 'time() - backstage_backup_last_success_timestamp_seconds{job="backstage-backup"} < 86400' 1
   wait_for_prometheus_query cloudflared_connections 'cloudflared_tunnel_ha_connections > 0' 1
   wait_for_prometheus_query jenkins_controller 'default_jenkins_up{job="jenkins"} == 1' 1
   wait_for_prometheus_query alertmanager_discovery 'prometheus_notifications_alertmanagers_discovered > 0' 1
