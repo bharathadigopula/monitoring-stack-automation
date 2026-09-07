@@ -87,12 +87,21 @@ if ! jq -e '
   .[0].targets == ["http://10.10.10.3:7007/.backstage/health/v1/readiness"] and
   .[0].labels.service == "backstage"
 ' "$repository_root/config/prometheus/targets/backstage.json" >/dev/null || \
+  ! sed -n '/job_name: backstage-health/,/job_name: backstage-postgres/p' \
+    "$repository_root/config/prometheus/prometheus.yml" | grep -Fq -- '- https_2xx' || \
   ! jq -e '
     length == 1 and
     .[0].targets == ["10.10.10.3:9187"] and
     .[0].labels.service == "backstage-postgresql"
   ' "$repository_root/config/prometheus/targets/backstage-postgres.json" >/dev/null; then
   printf 'Backstage readiness and PostgreSQL targets must be configured.\n' >&2
+  exit 1
+fi
+
+if ! grep -Fq 'backstage_readiness' "$repository_root/scripts/manage.sh" || \
+  ! grep -Fq 'backstage_postgresql' "$repository_root/scripts/manage.sh" || \
+  ! grep -Fq 'backstage_backup' "$repository_root/scripts/manage.sh"; then
+  printf 'Backstage targets must be included in full monitoring verification.\n' >&2
   exit 1
 fi
 

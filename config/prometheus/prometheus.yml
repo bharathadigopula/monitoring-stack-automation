@@ -117,7 +117,7 @@ scrape_configs:
     metrics_path: /probe
     params:
       module:
-        - http_2xx
+        - https_2xx
     file_sd_configs:
       - files:
           - /etc/prometheus/targets/backstage.json
