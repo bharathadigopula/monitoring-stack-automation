@@ -176,7 +176,7 @@ UPGRADE AND ROLLBACK
 5. Verify all four control-plane endpoints, scrape targets, rules, dashboards, and notification delivery.
 6. Run `rollback` if verification fails.
 
-Docker Engine `29.7.2`, containerd `2.3.3`, Buildx `0.36.1`, and Compose `5.5.0` are pinned for Ubuntu 24.04. Daily CI compares all component releases and Docker packages with official upstream metadata and verifies AMD64 and ARM64 image support.
+Docker Engine `29.8.0`, containerd `2.3.4`, Buildx `0.36.1`, and Compose `5.5.1` are pinned for Ubuntu 24.04. Daily CI compares all component releases and Docker packages with official upstream metadata and verifies AMD64 and ARM64 image support.
 
 <!--
 ==============================================================================

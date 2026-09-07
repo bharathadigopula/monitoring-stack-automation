@@ -276,6 +276,11 @@ if ! grep -Fq 'apt-get update >/dev/null' "$repository_root/scripts/install-dock
   exit 1
 fi
 
+if ! grep -Fq "printf 'monitoring_validate=ready" "$repository_root/scripts/manage.sh"; then
+  printf 'Monitoring validation must emit the Jenkins readiness marker.\n' >&2
+  exit 1
+fi
+
 #==============================================================================
 # OCI BOOTSTRAP PAYLOAD VALIDATION
 #==============================================================================
