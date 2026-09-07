@@ -543,6 +543,7 @@ rollback_stack() {
 case "$action" in
   validate)
     validate_stack
+    printf 'monitoring_validate=ready\n'
     ;;
   dry-run)
     validate_stack
