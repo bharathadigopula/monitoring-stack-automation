@@ -328,8 +328,8 @@ verify_stack() {
   printf 'alertmanager_status=ready\n'
 
   dashboard_count=$(find "$install_root/current/dashboards" -maxdepth 1 -type f -name '*.json' | wc -l | tr -d ' ')
-  if (( dashboard_count != 8 )); then
-    printf 'Expected eight provisioned dashboards, found %s.\n' "$dashboard_count" >&2
+  if (( dashboard_count != 9 )); then
+    printf 'Expected nine provisioned dashboards, found %s.\n' "$dashboard_count" >&2
     return 1
   fi
   printf 'grafana_dashboards=ready\n'
