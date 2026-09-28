@@ -314,6 +314,8 @@ verify_stack() {
   wait_for_prometheus_query backstage_backup 'time() - backstage_backup_last_success_timestamp_seconds{job="backstage-backup"} < 86400' 1
   wait_for_prometheus_query cloudflared_connections 'cloudflared_tunnel_ha_connections > 0' 1
   wait_for_prometheus_query jenkins_controller 'default_jenkins_up{job="jenkins"} == 1' 1
+  wait_for_prometheus_query github_runner_metrics 'github_runner_scrape_success{job="github-runners"} == 1' 1
+  wait_for_prometheus_query github_runner_capacity 'sum(github_runner_online{job="github-runners"}) == 2' 1
   wait_for_prometheus_query alertmanager_discovery 'prometheus_notifications_alertmanagers_discovered > 0' 1
 
   rules=$(curl --fail --silent --show-error http://127.0.0.1:9090/api/v1/rules)
@@ -331,8 +333,8 @@ verify_stack() {
   printf 'alertmanager_status=ready\n'
 
   dashboard_count=$(find "$install_root/current/dashboards" -maxdepth 1 -type f -name '*.json' | wc -l | tr -d ' ')
-  if (( dashboard_count != 9 )); then
-    printf 'Expected nine provisioned dashboards, found %s.\n' "$dashboard_count" >&2
+  if (( dashboard_count != 10 )); then
+    printf 'Expected ten provisioned dashboards, found %s.\n' "$dashboard_count" >&2
     return 1
   fi
   printf 'grafana_dashboards=ready\n'

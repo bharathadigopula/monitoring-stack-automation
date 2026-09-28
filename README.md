@@ -18,11 +18,11 @@ STACK COMPONENTS
 
 | Component | Version | CPU limit | Memory limit | Purpose |
 | --- | --- | ---: | ---: | --- |
-| Prometheus | `v3.14.0` | `0.40` | `1536M` | Metrics storage, recording rules, and alert evaluation |
-| Alertmanager | `v0.34.0` | `0.05` | `64M` | Gmail SMTP notification routing and inhibition |
-| Grafana | `13.2.0` | `0.20` | `512M` | Dashboards and native authentication |
+| Prometheus | `v3.15.0` | `0.40` | `1536M` | Metrics storage, recording rules, and alert evaluation |
+| Alertmanager | `v0.34.1` | `0.05` | `64M` | Gmail SMTP notification routing and inhibition |
+| Grafana | `13.2.2` | `0.20` | `512M` | Dashboards and native authentication |
 | Node Exporter | `v1.12.1` | `0.05` | `64M` | Linux host metrics |
-| cAdvisor | `v0.60.5` | `0.10` | `192M` | Docker container metrics |
+| cAdvisor | `v0.60.6` | `0.10` | `192M` | Docker container metrics |
 | Blackbox Exporter | `v0.28.0` | `0.05` | `64M` | External HTTPS availability and TLS certificate probes |
 
 Prometheus defaults to a 60-second scrape interval, seven-day retention, and an 8 GB storage ceiling. Prometheus, Alertmanager, and Blackbox Exporter bind to loopback. Grafana binds to `MONITORING_BIND_ADDRESS`, which should be a private address when an outbound tunnel provides ingress.
@@ -103,7 +103,7 @@ LIFECYCLE OPERATIONS
 | `dry-run` | No | Validates and reports the release path |
 | `deploy` | Yes | Installs a release and starts systemd service |
 | `upgrade` | Yes | Deploys a new release while retaining the previous symlink |
-| `verify` | No | Checks endpoints, six services, scrape targets, probes, Jenkins readiness, Cloudflare connections, Alertmanager discovery, rules, eight dashboards, and backup timer |
+| `verify` | No | Checks endpoints, six services, scrape targets, probes, Jenkins and GitHub runner readiness, Cloudflare connections, Alertmanager discovery, rules, ten dashboards, and backup timer |
 | `status` | No | Reports systemd, Compose, logs, and control-plane endpoint codes |
 | `backup` | Yes | Creates a root-only archive of Grafana, Prometheus, and Alertmanager state |
 | `restore` | Yes | Restores `MONITORING_RESTORE_ARCHIVE` |
@@ -120,13 +120,14 @@ PROMETHEUS METRICS TARGETS
 
 ## Metrics Targets
 
-Prometheus always scrapes itself, Alertmanager, Grafana, Node Exporter, cAdvisor, Blackbox Exporter, and Jenkins. File-based service discovery configures service probes, the Cloudflare connector, and the Jenkins controller:
+Prometheus always scrapes itself, Alertmanager, Grafana, Node Exporter, cAdvisor, Blackbox Exporter, Jenkins during migration, and the GitHub Actions runner exporter. File-based service discovery configures service probes, the Cloudflare connector, Jenkins controller, and OCI platform runner target:
 
 - `config/prometheus/targets/blackbox.json`
 - `config/prometheus/targets/cloudflared.json`
+- `config/prometheus/targets/github-runners.json`
 - `config/prometheus/targets/jenkins.json`
 
-The production Blackbox target file probes Grafana and Cloudflare Access over HTTPS and the Jenkins origin over its private login URL. The Cloudflare target scrapes the connector's private `:8880` metrics listener. The Jenkins job scrapes `/prometheus/` over the private network with HTTP Basic authentication from a mounted password file. Deployment succeeds only when the scrape target is healthy and `default_jenkins_up` reports controller readiness. Keep Prometheus and Alertmanager private; expose Grafana only through authenticated ingress while preserving Grafana's native login.
+The production Blackbox target file probes Grafana and Cloudflare Access over HTTPS and the Jenkins origin over its private login URL. The Cloudflare target scrapes the connector's private `:8880` metrics listener. The Jenkins job scrapes `/prometheus/` over the private network with HTTP Basic authentication from a mounted password file. The `github-runners` job scrapes the private OCI platform exporter on port `9101`, including host capacity, runner online/busy state, workflow queue depth, and recent failures. Deployment succeeds only when both ephemeral runners report online during the migration period. Keep Prometheus and Alertmanager private; expose Grafana only through authenticated ingress while preserving Grafana's native login.
 
 <!--
 ==============================================================================
@@ -138,7 +139,7 @@ ALERT DELIVERY
 
 Prometheus routes firing alerts to the private Alertmanager service. Alertmanager sends resolved and firing notifications from `bharathcloudops@gmail.com` to `adigopulabharath@outlook.com` through `smtp.gmail.com:587` with TLS. Critical alerts repeat hourly, warning alerts use the four-hour default, and matching warnings are inhibited while their critical alert is active.
 
-Alert rules cover target availability, external endpoint failures, certificate expiry, Cloudflare connector metrics and HA connections, Jenkins controller readiness and blocked queues, host CPU/memory/disk/inodes, container memory, Prometheus reload/evaluation/storage health, and Alertmanager delivery failures.
+Alert rules cover target availability, external endpoint failures, certificate expiry, Cloudflare connector metrics and HA connections, Jenkins controller readiness and blocked queues, GitHub runner availability and stale metrics, GitHub workflow queues and failures, host CPU/memory/disk/inodes, container memory, Prometheus reload/evaluation/storage health, and Alertmanager delivery failures.
 
 <!--
 ==============================================================================
@@ -158,8 +159,9 @@ Provisioned dashboards use stable UIDs:
 - `alert-operations`
 - `cloudflare-tunnel`
 - `jenkins-controller`
+- `github-actions-runners`
 
-The dashboards cover host and container capacity, monitoring control-plane health, named service targets, external probes and certificate lifetime, active alerts and notification failures, Cloudflare Tunnel connections, and Jenkins readiness, uptime, executors, queue, and build outcomes.
+The dashboards cover host and container capacity, monitoring control-plane health, named service targets, external probes and certificate lifetime, active alerts and notification failures, Cloudflare Tunnel connections, Jenkins readiness during migration, and GitHub runner availability, workload, queue, failure, and OCI platform capacity metrics.
 
 <!--
 ==============================================================================
@@ -176,7 +178,7 @@ UPGRADE AND ROLLBACK
 5. Verify all four control-plane endpoints, scrape targets, rules, dashboards, and notification delivery.
 6. Run `rollback` if verification fails.
 
-Docker Engine `29.8.0`, containerd `2.3.4`, Buildx `0.36.1`, and Compose `5.5.1` are pinned for Ubuntu 24.04. Daily CI compares all component releases and Docker packages with official upstream metadata and verifies AMD64 and ARM64 image support.
+Docker Engine `29.8.1`, containerd `2.3.6`, Buildx `0.37.1`, and Compose `5.5.1` are pinned for Ubuntu 24.04. Daily CI compares all component releases and Docker packages with official upstream metadata and verifies AMD64 and ARM64 image support.
 
 <!--
 ==============================================================================

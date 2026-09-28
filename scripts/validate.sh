@@ -31,11 +31,13 @@ required_files=(
   config/prometheus/targets/backstage.json
   config/prometheus/targets/blackbox.json
   config/prometheus/targets/cloudflared.json
+  config/prometheus/targets/github-runners.json
   config/prometheus/targets/jenkins.json
   config/grafana/provisioning/datasources/datasource.yml
   config/grafana/provisioning/dashboards/default.yml
   dashboards/monitoring-health.json
   dashboards/backstage-platform.json
+  dashboards/github-actions-runners.json
   scripts/check-latest-versions.sh
   systemd/monitoring-stack-backup.service
   systemd/monitoring-stack-backup.timer
@@ -79,6 +81,20 @@ if ! jq -e '
   .[0].labels.service == "jenkins"
 ' "$repository_root/config/prometheus/targets/jenkins.json" >/dev/null; then
   printf 'Production Jenkins metrics target must be configured.\n' >&2
+  exit 1
+fi
+
+if ! jq -e '
+  length == 1 and
+  .[0].targets == ["10.10.10.68:9101"] and
+  .[0].labels.cloud == "oci" and
+  .[0].labels.service == "github-runners"
+' "$repository_root/config/prometheus/targets/github-runners.json" >/dev/null || \
+  ! grep -Fq 'job_name: github-runners' "$repository_root/config/prometheus/prometheus.yml" || \
+  ! grep -Fq 'GitHubRunnerOffline' "$repository_root/config/prometheus/rules/monitoring.rules.yml" || \
+  ! grep -Fq 'GitHubRunnerMetricsStale' "$repository_root/config/prometheus/rules/monitoring.rules.yml" || \
+  ! grep -Fq 'GitHubActionsQueueBlocked' "$repository_root/config/prometheus/rules/monitoring.rules.yml"; then
+  printf 'GitHub Actions runner metrics and alerts must be configured.\n' >&2
   exit 1
 fi
 
@@ -162,9 +178,9 @@ if ! jq -s -e '([.[].uid] | unique | length) == length' "$repository_root"/dashb
   exit 1
 fi
 
-if ! grep -Fq 'dashboard_count != 9' "$repository_root/scripts/manage.sh" || \
-  ! grep -Fq 'Expected nine provisioned dashboards' "$repository_root/scripts/manage.sh"; then
-  printf 'Runtime verification must require all nine Grafana dashboards.\n' >&2
+if ! grep -Fq 'dashboard_count != 10' "$repository_root/scripts/manage.sh" || \
+  ! grep -Fq 'Expected ten provisioned dashboards' "$repository_root/scripts/manage.sh"; then
+  printf 'Runtime verification must require all ten Grafana dashboards.\n' >&2
   exit 1
 fi
 

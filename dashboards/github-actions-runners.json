@@ -1,0 +1,94 @@
+{
+  "annotations": {"list": []},
+  "editable": false,
+  "graphTooltip": 1,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"mappings": [{"options": {"0": {"color": "red", "text": "Unavailable"}, "1": {"color": "orange", "text": "Degraded"}, "2": {"color": "green", "text": "Ready"}}, "type": "value"}], "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "orange", "value": 1}, {"color": "green", "value": 2}]}}, "overrides": []},
+      "gridPos": {"h": 7, "w": 6, "x": 0, "y": 0},
+      "id": 1,
+      "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
+      "targets": [{"expr": "sum(github_runner_online{job=\"github-runners\"})", "legendFormat": "Online", "refId": "A"}],
+      "title": "Online Runners",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"mappings": [{"options": {"0": {"color": "red", "text": "Offline"}, "1": {"color": "green", "text": "Online"}}, "type": "value"}], "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}}, "overrides": []},
+      "gridPos": {"h": 7, "w": 6, "x": 6, "y": 0},
+      "id": 2,
+      "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
+      "targets": [{"expr": "sum(github_runner_online{job=\"github-runners\",role=\"deploy\"})", "legendFormat": "Deploy", "refId": "A"}],
+      "title": "Deploy Runner",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"mappings": [{"options": {"0": {"color": "red", "text": "Offline"}, "1": {"color": "green", "text": "Online"}}, "type": "value"}], "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}}, "overrides": []},
+      "gridPos": {"h": 7, "w": 6, "x": 12, "y": 0},
+      "id": 3,
+      "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
+      "targets": [{"expr": "sum(github_runner_online{job=\"github-runners\",role=\"validate\"})", "legendFormat": "Validate", "refId": "A"}],
+      "title": "Validate Runner",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1}]}, "unit": "short"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 6, "x": 18, "y": 0},
+      "id": 4,
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
+      "targets": [{"expr": "github_actions_workflow_runs{job=\"github-runners\",status=\"queued\"}", "legendFormat": "Queued", "refId": "A"}],
+      "title": "Queued Workflows",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 7},
+      "id": 5,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [
+        {"expr": "github_runner_busy{job=\"github-runners\",role=\"deploy\"}", "legendFormat": "Deploy busy", "refId": "A"},
+        {"expr": "github_runner_busy{job=\"github-runners\",role=\"validate\"}", "legendFormat": "Validate busy", "refId": "B"},
+        {"expr": "github_actions_workflow_runs{job=\"github-runners\",status=\"in_progress\"}", "legendFormat": "In progress", "refId": "C"}
+      ],
+      "title": "Runner Activity",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"max": 100, "min": 0, "unit": "percent"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 7},
+      "id": 6,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [
+        {"expr": "100 * instance:node_cpu_utilisation:rate5m{job=\"github-runners\"}", "legendFormat": "CPU", "refId": "A"},
+        {"expr": "100 * instance:node_memory_utilisation:ratio{job=\"github-runners\"}", "legendFormat": "Memory", "refId": "B"}
+      ],
+      "title": "OCI Platform Capacity",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}, "unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 7},
+      "id": 7,
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
+      "targets": [{"expr": "github_actions_failed_runs_6h{job=\"github-runners\"}", "legendFormat": "Failed", "refId": "A"}],
+      "title": "Failures (6 Hours)",
+      "type": "stat"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 41,
+  "tags": ["github-actions", "self-hosted-runner", "oci", "platform"],
+  "templating": {"list": []},
+  "time": {"from": "now-6h", "to": "now"},
+  "timezone": "browser",
+  "title": "GitHub Actions Runners - OCI Platform",
+  "uid": "github-actions-runners",
+  "version": 1
+}
