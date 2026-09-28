@@ -53,7 +53,6 @@ services:
     restart: unless-stopped
     volumes:
       - ./config/prometheus:/etc/prometheus:ro
-      - ./secrets/jenkins-admin-password:/run/secrets/jenkins-admin-password:ro
       - prometheus-data:/prometheus
 
   #============================================================================

@@ -32,7 +32,6 @@ required_files=(
   config/prometheus/targets/blackbox.json
   config/prometheus/targets/cloudflared.json
   config/prometheus/targets/github-runners.json
-  config/prometheus/targets/jenkins.json
   config/grafana/provisioning/datasources/datasource.yml
   config/grafana/provisioning/dashboards/default.yml
   dashboards/monitoring-health.json
@@ -74,15 +73,6 @@ for target_file in "$repository_root"/config/prometheus/targets/*.json; do
     )
   ' "$target_file" >/dev/null
 done
-
-if ! jq -e '
-  length == 1 and
-  .[0].targets == ["10.10.10.68:8080"] and
-  .[0].labels.service == "jenkins"
-' "$repository_root/config/prometheus/targets/jenkins.json" >/dev/null; then
-  printf 'Production Jenkins metrics target must be configured.\n' >&2
-  exit 1
-fi
 
 if ! jq -e '
   length == 1 and
@@ -132,17 +122,9 @@ if ! jq -e '
 fi
 
 if ! jq -e '
-  ([.[].labels.service] | sort) == ["Cloudflare Access", "Grafana", "Jenkins origin"]
+  ([.[].labels.service] | sort) == ["Cloudflare Access", "Grafana"]
 ' "$repository_root/config/prometheus/targets/blackbox.json" >/dev/null; then
   printf 'Blackbox targets must use the expected service labels.\n' >&2
-  exit 1
-fi
-
-if ! grep -Fq 'password_file: /run/secrets/jenkins-admin-password' \
-  "$repository_root/config/prometheus/prometheus.yml" || \
-  ! grep -Fq './secrets/jenkins-admin-password:/run/secrets/jenkins-admin-password:ro' \
-    "$repository_root/compose.yaml"; then
-  printf 'Jenkins metrics must use the mounted password file.\n' >&2
   exit 1
 fi
 
@@ -178,9 +160,9 @@ if ! jq -s -e '([.[].uid] | unique | length) == length' "$repository_root"/dashb
   exit 1
 fi
 
-if ! grep -Fq 'dashboard_count != 10' "$repository_root/scripts/manage.sh" || \
-  ! grep -Fq 'Expected ten provisioned dashboards' "$repository_root/scripts/manage.sh"; then
-  printf 'Runtime verification must require all ten Grafana dashboards.\n' >&2
+if ! grep -Fq 'dashboard_count != 9' "$repository_root/scripts/manage.sh" || \
+  ! grep -Fq 'Expected nine provisioned dashboards' "$repository_root/scripts/manage.sh"; then
+  printf 'Runtime verification must require all nine Grafana dashboards.\n' >&2
   exit 1
 fi
 
@@ -214,21 +196,12 @@ run_quietly() {
 }
 
 if docker version >/dev/null 2>&1; then
-  jenkins_container_id=${JENKINS_CONTAINER_ID:-${HOSTNAME:-}}
   prometheus_config=/etc/prometheus/prometheus.yml
   alertmanager_config=/etc/alertmanager/alertmanager.yml.template
   blackbox_config=/etc/blackbox_exporter/blackbox.yml
   prometheus_mount=(--volume "$repository_root/config/prometheus:/etc/prometheus:ro")
   alertmanager_mount=(--volume "$repository_root/config/alertmanager:/etc/alertmanager:ro")
   blackbox_mount=(--volume "$repository_root/config/blackbox:/etc/blackbox_exporter:ro")
-  if [[ -n "$jenkins_container_id" ]] && docker inspect "$jenkins_container_id" >/dev/null 2>&1; then
-    prometheus_config="$repository_root/config/prometheus/prometheus.yml"
-    alertmanager_config="$repository_root/config/alertmanager/alertmanager.yml.template"
-    blackbox_config="$repository_root/config/blackbox/blackbox.yml"
-    prometheus_mount=(--volumes-from "$jenkins_container_id")
-    alertmanager_mount=(--volumes-from "$jenkins_container_id")
-    blackbox_mount=(--volumes-from "$jenkins_container_id")
-  fi
 
   run_quietly docker run --rm \
     --entrypoint /bin/promtool \
@@ -271,12 +244,6 @@ if ! grep -Fq "chown 472:472 \"\$release_path/secrets/grafana-admin-password\"" 
   exit 1
 fi
 
-if ! grep -Fq "chown 65534:65534 \"\$password_file\"" "$repository_root/scripts/manage.sh" || \
-  ! grep -Fq "chmod 0400 \"\$password_file\"" "$repository_root/scripts/manage.sh"; then
-  printf 'Jenkins metrics password must be readable only by Prometheus UID 65534.\n' >&2
-  exit 1
-fi
-
 #==============================================================================
 # SYSTEMD RELEASE ACTIVATION VALIDATION
 #==============================================================================
@@ -308,7 +275,7 @@ if ! grep -Fq 'apt-get update >/dev/null' "$repository_root/scripts/install-dock
 fi
 
 if ! grep -Fq "printf 'monitoring_validate=ready" "$repository_root/scripts/manage.sh"; then
-  printf 'Monitoring validation must emit the Jenkins readiness marker.\n' >&2
+  printf 'Monitoring validation must emit its readiness marker.\n' >&2
   exit 1
 fi
 
@@ -325,8 +292,7 @@ sample_arguments=$(jq -cn '[
   "10.10.10.3",
   "",
   "AAAAAAAAAAAAAAAAAAAAAAAA",
-  "abcdefghijklmnop",
-  ({admin_password: ("J" * 180)} | tojson)
+  "abcdefghijklmnop"
 ]')
 argument_line=$(jq -r '[.[] | @sh] | "set -- " + join(" ")' <<< "$sample_arguments")
 rendered_size=$(printf '%s\n%s' "$argument_line" "$(cat "$repository_root/scripts/bootstrap.sh")" | wc -c | tr -d ' ')
