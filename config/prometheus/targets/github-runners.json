@@ -1,0 +1,13 @@
+[
+  {
+    "targets": [
+      "10.10.10.68:9101"
+    ],
+    "labels": {
+      "cloud": "oci",
+      "environment": "prd",
+      "instance": "bharathcloudops-oci-platform",
+      "service": "github-runners"
+    }
+  }
+]

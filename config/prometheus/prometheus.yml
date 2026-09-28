@@ -170,3 +170,12 @@ scrape_configs:
     file_sd_configs:
       - files:
           - /etc/prometheus/targets/jenkins.json
+
+          #============================================================================
+          # GITHUB ACTIONS RUNNER AND OCI PLATFORM METRICS
+          #============================================================================
+
+  - job_name: github-runners
+    file_sd_configs:
+      - files:
+          - /etc/prometheus/targets/github-runners.json

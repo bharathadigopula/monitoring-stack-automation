@@ -73,6 +73,46 @@ groups:
           description: Jenkins has runnable work waiting without an available executor for ten minutes.
 
       #==========================================================================
+      # GITHUB ACTIONS RUNNER ALERTS
+      #==========================================================================
+
+      - alert: GitHubRunnerOffline
+        expr: sum by (role) (github_runner_online{job="github-runners"}) < 1
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: GitHub Actions {{ $labels.role }} runner is offline
+          description: No online BharathCoudOps OCI platform runner has been available for this role for three minutes.
+
+      - alert: GitHubRunnerMetricsStale
+        expr: time() - node_textfile_mtime_seconds{job="github-runners",file="github_runner.prom"} > 180
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: GitHub Actions runner metrics are stale
+          description: The OCI platform runner metrics exporter has not refreshed successfully for more than three minutes.
+
+      - alert: GitHubActionsQueueBlocked
+        expr: github_actions_workflow_runs{job="github-runners",status="queued"} > 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: GitHub Actions workflow queue is blocked
+          description: One or more workflow runs have remained queued for at least fifteen minutes.
+
+      - alert: GitHubActionsRecentFailures
+        expr: github_actions_failed_runs_6h{job="github-runners"} > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: GitHub Actions workflows have recent failures
+          description: At least one workflow run has failed during the last six hours.
+
+      #==========================================================================
       # BACKSTAGE PLATFORM ALERTS
       #==========================================================================
 
