@@ -18,15 +18,5 @@
       "probe": "https",
       "service": "Cloudflare Access"
     }
-  },
-  {
-    "targets": [
-      "http://10.10.10.68:8080/login"
-    ],
-    "labels": {
-      "environment": "prd",
-      "probe": "origin",
-      "service": "Jenkins origin"
-    }
   }
 ]

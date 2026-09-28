@@ -27,7 +27,7 @@
   ],
   "refresh": "1m",
   "schemaVersion": 41,
-  "tags": ["services", "cloudflared", "jenkins", "grafana"],
+  "tags": ["services", "cloudflared", "grafana"],
   "templating": {"list": []},
   "time": {"from": "now-6h", "to": "now"},
   "timezone": "browser",

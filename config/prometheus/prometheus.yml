@@ -159,19 +159,6 @@ scrape_configs:
           - /etc/prometheus/targets/cloudflared.json
 
           #============================================================================
-          # JENKINS CONTROLLER METRICS
-          #============================================================================
-
-  - job_name: jenkins
-    metrics_path: /prometheus/
-    basic_auth:
-      username: admin
-      password_file: /run/secrets/jenkins-admin-password
-    file_sd_configs:
-      - files:
-          - /etc/prometheus/targets/jenkins.json
-
-          #============================================================================
           # GITHUB ACTIONS RUNNER AND OCI PLATFORM METRICS
           #============================================================================
 

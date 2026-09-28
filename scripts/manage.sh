@@ -17,7 +17,6 @@ set -euo pipefail
 action="${1:-validate}"
 grafana_admin_password="${2:-}"
 smtp_app_password="${3:-}"
-jenkins_secret_bundle="${4:-}"
 source_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 install_root="${MONITORING_INSTALL_ROOT:-/opt/monitoring-stack}"
 release_ref="${AUTOMATION_REF:-local}"
@@ -83,26 +82,6 @@ render_alertmanager_configuration() {
 }
 
 #==============================================================================
-# JENKINS METRICS SECRET RENDERING
-#==============================================================================
-
-render_jenkins_metrics_secret() {
-  local password_file="$release_path/secrets/jenkins-admin-password"
-
-  if ! jq -e '
-    type == "object" and
-    (.admin_password | type == "string" and length >= 16 and (contains("\n") | not))
-  ' <<< "$jenkins_secret_bundle" >/dev/null; then
-    printf 'Jenkins secret bundle must contain a valid admin_password.\n' >&2
-    exit 1
-  fi
-
-  jq -r '.admin_password' <<< "$jenkins_secret_bundle" > "$password_file"
-  chown 65534:65534 "$password_file"
-  chmod 0400 "$password_file"
-}
-
-#==============================================================================
 # STACK DEPLOYMENT
 #==============================================================================
 
@@ -116,14 +95,6 @@ deploy_stack() {
     printf 'A 16-character Gmail app password is required.\n' >&2
     exit 1
   fi
-  if ! jq -e '
-    type == "object" and
-    (.admin_password | type == "string" and length >= 16 and (contains("\n") | not))
-  ' <<< "$jenkins_secret_bundle" >/dev/null; then
-    printf 'Jenkins secret bundle must contain a valid admin_password.\n' >&2
-    exit 1
-  fi
-
   validate_stack
   docker compose version >/dev/null
   install -d -m 0755 "$install_root/releases"
@@ -135,7 +106,6 @@ deploy_stack() {
   chown 472:472 "$release_path/secrets/grafana-admin-password"
   chmod 0400 "$release_path/secrets/grafana-admin-password"
   render_alertmanager_configuration
-  render_jenkins_metrics_secret
   write_environment
 
   if [[ -L "$install_root/current" ]]; then
@@ -243,11 +213,11 @@ verify_prometheus_targets() {
   response=$(curl --fail --silent --show-error http://127.0.0.1:9090/api/v1/targets)
   if ! jq -e '
     .status == "success" and
-    (["alertmanager", "backstage-backup", "backstage-health", "backstage-postgres", "blackbox-exporter", "cadvisor", "cloudflared", "grafana", "jenkins", "node", "prometheus"] -
+    (["alertmanager", "backstage-backup", "backstage-health", "backstage-postgres", "blackbox-exporter", "cadvisor", "cloudflared", "grafana", "github-runners", "node", "prometheus"] -
       ([.data.activeTargets[].labels.job] | unique) | length) == 0 and
     ([
       .data.activeTargets[] |
-      select(.labels.job | test("^(prometheus|node|cadvisor|grafana|alertmanager|blackbox-exporter|cloudflared|jenkins|backstage-health|backstage-postgres|backstage-backup)$")) |
+      select(.labels.job | test("^(prometheus|node|cadvisor|grafana|alertmanager|blackbox-exporter|cloudflared|github-runners|backstage-health|backstage-postgres|backstage-backup)$")) |
       select(.health != "up")
     ] | length) == 0
   ' <<< "$response" >/dev/null; then
@@ -260,7 +230,7 @@ verify_prometheus_targets() {
     ' <<< "$response" >&2
     jq -r '
       .data.activeTargets[] |
-      select(.labels.job | test("^(prometheus|node|cadvisor|grafana|alertmanager|blackbox-exporter|cloudflared|jenkins|backstage-health|backstage-postgres|backstage-backup)$")) |
+      select(.labels.job | test("^(prometheus|node|cadvisor|grafana|alertmanager|blackbox-exporter|cloudflared|github-runners|backstage-health|backstage-postgres|backstage-backup)$")) |
       select(.health != "up") |
       "prometheus_target_failure=" + .labels.job + "/" + .labels.instance + ":" + .health + ":" +
       (.lastError | gsub("[\\r\\n]"; " "))
@@ -313,7 +283,6 @@ verify_stack() {
   wait_for_prometheus_query backstage_postgresql 'pg_up{job="backstage-postgres"} == 1' 1
   wait_for_prometheus_query backstage_backup 'time() - backstage_backup_last_success_timestamp_seconds{job="backstage-backup"} < 86400' 1
   wait_for_prometheus_query cloudflared_connections 'cloudflared_tunnel_ha_connections > 0' 1
-  wait_for_prometheus_query jenkins_controller 'default_jenkins_up{job="jenkins"} == 1' 1
   wait_for_prometheus_query github_runner_metrics 'github_runner_scrape_success{job="github-runners"} == 1' 1
   wait_for_prometheus_query github_runner_capacity 'sum(github_runner_online{job="github-runners"}) == 2' 1
   wait_for_prometheus_query alertmanager_discovery 'prometheus_notifications_alertmanagers_discovered > 0' 1
@@ -333,8 +302,8 @@ verify_stack() {
   printf 'alertmanager_status=ready\n'
 
   dashboard_count=$(find "$install_root/current/dashboards" -maxdepth 1 -type f -name '*.json' | wc -l | tr -d ' ')
-  if (( dashboard_count != 10 )); then
-    printf 'Expected ten provisioned dashboards, found %s.\n' "$dashboard_count" >&2
+  if (( dashboard_count != 9 )); then
+    printf 'Expected nine provisioned dashboards, found %s.\n' "$dashboard_count" >&2
     return 1
   fi
   printf 'grafana_dashboards=ready\n'

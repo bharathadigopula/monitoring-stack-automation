@@ -15,7 +15,6 @@ bind_address="${6:-127.0.0.1}"
 restore_archive="${7:-}"
 grafana_admin_password="${8:-}"
 smtp_app_password="${9:-}"
-jenkins_secret_bundle="${10:-}"
 
 case "$action" in
   validate|dry-run|deploy|verify|status|backup|restore|rollback|test-alert) ;;
@@ -58,11 +57,11 @@ manage_script="$source_root/scripts/manage.sh"
 if [[ "$action" == "deploy" ]]; then
   sudo -n bash "$source_root/scripts/install-docker.sh" "$action"
   sudo -n env "${run_env[@]}" bash "$manage_script" "$action" \
-    "$grafana_admin_password" "$smtp_app_password" "$jenkins_secret_bundle"
+    "$grafana_admin_password" "$smtp_app_password"
 elif [[ "$action" =~ ^(verify|status|backup|restore|rollback|test-alert)$ ]]; then
   sudo -n env "${run_env[@]}" bash "$manage_script" "$action"
 else
   bash "$source_root/scripts/install-docker.sh" "$action"
   env "${run_env[@]}" bash "$manage_script" "$action" \
-    "$grafana_admin_password" "$smtp_app_password" "$jenkins_secret_bundle"
+    "$grafana_admin_password" "$smtp_app_password"
 fi
