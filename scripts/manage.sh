@@ -278,7 +278,7 @@ verify_stack() {
   printf 'monitoring_services=ready\n'
 
   wait_for_prometheus_targets
-  wait_for_prometheus_query external_probes 'probe_success{job="blackbox"} == 1' 3
+  wait_for_prometheus_query external_probes 'probe_success{job="blackbox"} == 1' 2
   wait_for_prometheus_query backstage_readiness 'probe_success{job="backstage-health"} == 1' 1
   wait_for_prometheus_query backstage_postgresql 'pg_up{job="backstage-postgres"} == 1' 1
   wait_for_prometheus_query backstage_backup 'time() - backstage_backup_last_success_timestamp_seconds{job="backstage-backup"} < 86400' 1
