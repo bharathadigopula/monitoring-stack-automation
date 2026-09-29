@@ -128,6 +128,12 @@ if ! jq -e '
   exit 1
 fi
 
+if ! grep -Fq "wait_for_prometheus_query external_probes 'probe_success{job=\"blackbox\"} == 1' 2" \
+  "$repository_root/scripts/manage.sh"; then
+  printf 'Runtime verification must require both external probes.\n' >&2
+  exit 1
+fi
+
 #==============================================================================
 # GRAFANA DASHBOARD VALIDATION
 #==============================================================================
