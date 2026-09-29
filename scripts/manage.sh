@@ -127,7 +127,7 @@ deploy_stack() {
   install -m 0644 "$release_path/systemd/monitoring-stack-backup.timer" /etc/systemd/system/monitoring-stack-backup.timer
   systemctl daemon-reload
   systemctl enable monitoring-stack.service
-  systemctl restart monitoring-stack.service
+  systemctl reload-or-restart monitoring-stack.service
   systemctl enable --now monitoring-stack-backup.timer
   verify_stack
   printf '%s\n' "$deployment_fingerprint" > "$fingerprint_file.partial"

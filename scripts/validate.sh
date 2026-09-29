@@ -254,8 +254,8 @@ fi
 # SYSTEMD RELEASE ACTIVATION VALIDATION
 #==============================================================================
 
-if ! grep -Fq 'systemctl restart monitoring-stack.service' "$repository_root/scripts/manage.sh"; then
-  printf 'Deployment must restart the active service to apply the new release.\n' >&2
+if ! grep -Fq 'systemctl reload-or-restart monitoring-stack.service' "$repository_root/scripts/manage.sh"; then
+  printf 'Deployment must reconcile monitoring without stopping unchanged containers.\n' >&2
   exit 1
 fi
 
