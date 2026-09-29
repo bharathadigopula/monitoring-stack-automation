@@ -86,6 +86,9 @@ render_alertmanager_configuration() {
 #==============================================================================
 
 deploy_stack() {
+  local deployment_fingerprint
+  local fingerprint_file="$install_root/deployment.sha256"
+
   require_root
   if [[ -z "$grafana_admin_password" || "$grafana_admin_password" == *$'\n'* ]]; then
     printf 'A single-line Grafana administrator password is required.\n' >&2
@@ -97,6 +100,12 @@ deploy_stack() {
   fi
   validate_stack
   docker compose version >/dev/null
+  deployment_fingerprint=$(printf '%s\0' "$release_ref" "${GRAFANA_ADMIN_USER:-admin}" "${GRAFANA_DOMAIN:-localhost}" "${GRAFANA_ROOT_URL:-http://localhost:3000}" "${MONITORING_BIND_ADDRESS:-127.0.0.1}" "${PROMETHEUS_RETENTION_SIZE:-8GB}" "${PROMETHEUS_RETENTION_TIME:-7d}" "$grafana_admin_password" "$smtp_app_password" | sha256sum | awk '{print $1}')
+  if [[ -f "$fingerprint_file" && "$(<"$fingerprint_file")" == "$deployment_fingerprint" && -L "$install_root/current" ]] && verify_stack; then
+    printf 'monitoring_deploy=unchanged\n'
+    printf 'monitoring_deploy=ready\n'
+    return 0
+  fi
   install -d -m 0755 "$install_root/releases"
   rm -rf "$release_path"
   install -d -m 0755 "$release_path"
@@ -118,9 +127,12 @@ deploy_stack() {
   install -m 0644 "$release_path/systemd/monitoring-stack-backup.timer" /etc/systemd/system/monitoring-stack-backup.timer
   systemctl daemon-reload
   systemctl enable monitoring-stack.service
-  systemctl restart monitoring-stack.service
+  systemctl reload-or-restart monitoring-stack.service
   systemctl enable --now monitoring-stack-backup.timer
   verify_stack
+  printf '%s\n' "$deployment_fingerprint" > "$fingerprint_file.partial"
+  chmod 0600 "$fingerprint_file.partial"
+  mv "$fingerprint_file.partial" "$fingerprint_file"
   printf 'monitoring_deploy=ready\n'
 }
 

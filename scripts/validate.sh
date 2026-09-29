@@ -254,8 +254,8 @@ fi
 # SYSTEMD RELEASE ACTIVATION VALIDATION
 #==============================================================================
 
-if ! grep -Fq 'systemctl restart monitoring-stack.service' "$repository_root/scripts/manage.sh"; then
-  printf 'Deployment must restart the active service to apply the new release.\n' >&2
+if ! grep -Fq 'systemctl reload-or-restart monitoring-stack.service' "$repository_root/scripts/manage.sh"; then
+  printf 'Deployment must reconcile monitoring without stopping unchanged containers.\n' >&2
   exit 1
 fi
 
@@ -275,7 +275,11 @@ fi
 
 if ! grep -Fq 'apt-get update >/dev/null' "$repository_root/scripts/install-docker.sh" || \
   ! grep -Fq 'docker version >/dev/null' "$repository_root/scripts/install-docker.sh" || \
-  ! grep -Fq 'docker compose version >/dev/null' "$repository_root/scripts/install-docker.sh"; then
+  ! grep -Fq 'docker compose version >/dev/null' "$repository_root/scripts/install-docker.sh" || \
+  ! grep -Fq "dpkg-query --show --showformat='\${Version}' docker-ce" "$repository_root/scripts/install-docker.sh" || \
+  ! grep -Fq "printf 'docker_install=unchanged" "$repository_root/scripts/install-docker.sh" || \
+  ! grep -Fq 'deployment.sha256' "$repository_root/scripts/manage.sh" || \
+  ! grep -Fq "printf 'monitoring_deploy=unchanged" "$repository_root/scripts/manage.sh"; then
   printf 'Routine installer output must remain quiet so OCI retains readiness markers.\n' >&2
   exit 1
 fi
