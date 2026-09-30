@@ -40,8 +40,8 @@
       "gridPos": {"h": 7, "w": 6, "x": 18, "y": 0},
       "id": 4,
       "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
-      "targets": [{"expr": "github_actions_workflow_runs{job=\"github-runners\",status=\"queued\"}", "legendFormat": "Queued", "refId": "A"}],
-      "title": "Queued Workflows",
+      "targets": [{"expr": "sum(github_actions_oci_queued_jobs{job=\"github-runners\"})", "legendFormat": "Queued", "refId": "A"}],
+      "title": "Queued OCI Jobs",
       "type": "stat"
     },
     {

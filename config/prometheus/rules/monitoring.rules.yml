@@ -73,13 +73,13 @@ groups:
           description: The OCI platform runner metrics exporter has not refreshed successfully for more than three minutes.
 
       - alert: GitHubActionsQueueBlocked
-        expr: github_actions_workflow_runs{job="github-runners",status="queued"} > 0
+        expr: github_actions_oci_queued_jobs{job="github-runners"} > 0
         for: 15m
         labels:
           severity: warning
         annotations:
-          summary: GitHub Actions workflow queue is blocked
-          description: One or more workflow runs have remained queued for at least fifteen minutes.
+          summary: GitHub Actions {{ $labels.role }} runner queue is blocked
+          description: One or more jobs requesting the BharathCoudOps OCI {{ $labels.role }} runner have remained queued for at least fifteen minutes.
 
       - alert: GitHubActionsRecentFailures
         expr: github_actions_failed_runs_6h{job="github-runners"} > 0

@@ -83,7 +83,8 @@ if ! jq -e '
   ! grep -Fq 'job_name: github-runners' "$repository_root/config/prometheus/prometheus.yml" || \
   ! grep -Fq 'GitHubRunnerOffline' "$repository_root/config/prometheus/rules/monitoring.rules.yml" || \
   ! grep -Fq 'GitHubRunnerMetricsStale' "$repository_root/config/prometheus/rules/monitoring.rules.yml" || \
-  ! grep -Fq 'GitHubActionsQueueBlocked' "$repository_root/config/prometheus/rules/monitoring.rules.yml"; then
+  ! grep -Fq 'GitHubActionsQueueBlocked' "$repository_root/config/prometheus/rules/monitoring.rules.yml" || \
+  ! grep -Fq 'github_actions_oci_queued_jobs{job="github-runners"}' "$repository_root/config/prometheus/rules/monitoring.rules.yml"; then
   printf 'GitHub Actions runner metrics and alerts must be configured.\n' >&2
   exit 1
 fi
