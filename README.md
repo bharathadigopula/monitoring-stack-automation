@@ -122,7 +122,7 @@ Prometheus always scrapes itself, Alertmanager, Grafana, all three native Node E
 - `config/prometheus/targets/github-runners.json`
 - `config/prometheus/targets/nodes.json`
 
-The node targets are the local `k3s` Compose exporter, `platform` (`10.10.10.68:9100`), and `web-01` (`10.10.10.125:9100`). All carry stable `host` labels. The production Blackbox target file probes Grafana, Cloudflare Access, and Ignitox WordPress. The Cloudflare target scrapes `web-01:8880`. The `github-runners` job independently scrapes `platform:9101` for runner online/busy state, workflow queue depth, and recent failures. Keep Prometheus and Alertmanager private; expose Grafana only through authenticated ingress while preserving Grafana's native login.
+The node targets are the local `k3s` Compose exporter, `platform` (`10.10.10.68:9100`), and `web-01` (`10.10.10.125:9100`). All carry stable `host` labels. Static Blackbox targets cover Grafana and Cloudflare Access. WordPress targets are discovered from labeled K3s namespaces and their ingress hosts, then written atomically to a separate file-discovery target. The Cloudflare target scrapes `web-01:8880`. The `github-runners` job independently scrapes `platform:9101` for runner online/busy state, workflow queue depth, and recent failures. Keep Prometheus and Alertmanager private; expose Grafana only through authenticated ingress while preserving Grafana's native login.
 
 <!--
 ==============================================================================
@@ -136,7 +136,7 @@ K3S AND WORDPRESS METRICS
 
 ## WordPress Metrics
 
-WordPress is a separate application surface. Its dashboard filters K3s state to namespace `ignitox` and combines WordPress and Redis deployment readiness, MariaDB StatefulSet readiness and connection pressure, Redis memory and evictions, pod phases, container restarts, PVC binding and actual local-path bytes, backup completion age, public HTTPS availability, and response latency. This separation prevents host or cluster health from masking an application failure.
+WordPress is a separate application surface. Its dashboard provides a project selector backed by the `bharathcloudops.com/wordpress-site` namespace label and combines WordPress and Redis deployment readiness, MariaDB StatefulSet readiness and connection pressure, Redis memory and evictions, pod phases, container restarts, PVC binding and actual local-path bytes, backup completion age, public HTTPS availability, and response latency. Every application metric carries `site` and `namespace` labels. This separation prevents host or cluster health from masking an application failure and allows each project to be inspected independently.
 
 ## Storage Coverage
 
@@ -177,7 +177,7 @@ Provisioned dashboards use stable UIDs:
 - `kubernetes-cluster`
 - `wordpress-platform`
 
-The dashboards keep infrastructure, storage, K3s, and Ignitox WordPress distinct while retaining the existing monitoring, container, external availability, alert, Cloudflare, Backstage, and GitHub runner views.
+The dashboards keep infrastructure, storage, K3s, and WordPress projects distinct while retaining the existing monitoring, container, external availability, alert, Cloudflare, Backstage, and GitHub runner views.
 
 <!--
 ==============================================================================

@@ -304,8 +304,8 @@ verify_stack() {
   wait_for_prometheus_query github_runner_capacity 'sum(github_runner_online{job="github-runners"}) == 2' 1
   wait_for_prometheus_query production_hosts 'count(up{job="node"} == 1) == 3' 1
   wait_for_prometheus_query k3s_state 'bharath_k3s_collector_success == 1' 1
-  wait_for_prometheus_query wordpress_state 'bharath_k3s_deployment_replicas_available{namespace="ignitox",deployment="wordpress"} >= 1' 1
-  wait_for_prometheus_query wordpress_availability 'probe_success{job="blackbox",service="Ignitox WordPress"} == 1' 1
+  wait_for_prometheus_query wordpress_state 'bharath_wordpress_mariadb_up == 1' 1
+  wait_for_prometheus_query wordpress_availability 'probe_success{job="blackbox",service="WordPress"} == 1' 1
   wait_for_prometheus_query alertmanager_discovery 'prometheus_notifications_alertmanagers_discovered > 0' 1
 
   rules=$(curl --fail --silent --show-error http://127.0.0.1:9090/api/v1/rules)
