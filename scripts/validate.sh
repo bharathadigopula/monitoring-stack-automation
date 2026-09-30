@@ -95,6 +95,11 @@ for target_file in "$repository_root"/config/prometheus/targets/*.json; do
   ' "$target_file" >/dev/null
 done
 
+if [[ "$(grep -c 'refresh_interval: 5s' "$repository_root/config/prometheus/prometheus.yml")" -ne 7 ]]; then
+  printf 'Every file-discovered Prometheus job must refresh within deployment verification time.\n' >&2
+  exit 1
+fi
+
 if ! jq -e '
   length == 1 and
   .[0].targets == ["10.10.10.68:9101"] and

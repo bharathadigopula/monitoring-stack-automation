@@ -49,6 +49,7 @@ scrape_configs:
     file_sd_configs:
       - files:
           - /etc/prometheus/targets/nodes.json
+        refresh_interval: 5s
 
           #============================================================================
           # CONTAINER METRICS
@@ -99,6 +100,7 @@ scrape_configs:
     file_sd_configs:
       - files:
           - /etc/prometheus/targets/blackbox.json
+        refresh_interval: 5s
     relabel_configs:
       - source_labels:
           - __address__
@@ -121,6 +123,7 @@ scrape_configs:
     file_sd_configs:
       - files:
           - /etc/prometheus/targets/backstage.json
+        refresh_interval: 5s
     relabel_configs:
       - source_labels:
           - __address__
@@ -139,6 +142,7 @@ scrape_configs:
     file_sd_configs:
       - files:
           - /etc/prometheus/targets/backstage-postgres.json
+        refresh_interval: 5s
 
           #============================================================================
           # BACKSTAGE BACKUP METRICS
@@ -148,6 +152,7 @@ scrape_configs:
     file_sd_configs:
       - files:
           - /etc/prometheus/targets/backstage-backup.json
+        refresh_interval: 5s
 
           #============================================================================
           # CLOUDFLARE CONNECTOR METRICS
@@ -157,6 +162,7 @@ scrape_configs:
     file_sd_configs:
       - files:
           - /etc/prometheus/targets/cloudflared.json
+        refresh_interval: 5s
 
           #============================================================================
           # GITHUB ACTIONS RUNNER AND OCI PLATFORM METRICS
@@ -166,3 +172,4 @@ scrape_configs:
     file_sd_configs:
       - files:
           - /etc/prometheus/targets/github-runners.json
+        refresh_interval: 5s
