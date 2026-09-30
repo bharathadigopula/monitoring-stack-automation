@@ -32,12 +32,21 @@ required_files=(
   config/prometheus/targets/blackbox.json
   config/prometheus/targets/cloudflared.json
   config/prometheus/targets/github-runners.json
+  config/prometheus/targets/nodes.json
   config/grafana/provisioning/datasources/datasource.yml
   config/grafana/provisioning/dashboards/default.yml
   dashboards/monitoring-health.json
   dashboards/backstage-platform.json
   dashboards/github-actions-runners.json
+  dashboards/infrastructure-overview.json
+  dashboards/kubernetes-cluster.json
+  dashboards/storage-capacity.json
+  dashboards/wordpress-platform.json
+  scripts/export-kubernetes-metrics.sh
   scripts/check-latest-versions.sh
+  tests/test-export-kubernetes-metrics.sh
+  systemd/kubernetes-metrics-exporter.service
+  systemd/kubernetes-metrics-exporter.timer
   systemd/monitoring-stack-backup.service
   systemd/monitoring-stack-backup.timer
 )
@@ -48,6 +57,18 @@ for required_file in "${required_files[@]}"; do
     exit 1
   fi
 done
+
+if ! jq -e '
+  length == 3 and
+  ([.[].labels.host] | sort) == ["k3s", "platform", "web-01"] and
+  ([.[].targets[0]] | sort) == ["10.10.10.125:9100", "10.10.10.68:9100", "node-exporter:9100"] and
+  all(.[]; .labels.cloud == "oci" and .labels.environment == "prd")
+' "$repository_root/config/prometheus/targets/nodes.json" >/dev/null || \
+  ! sed -n '/job_name: node/,/job_name: cadvisor/p' \
+    "$repository_root/config/prometheus/prometheus.yml" | grep -Fq '/etc/prometheus/targets/nodes.json'; then
+  printf 'All three production hosts must be configured as private node targets.\n' >&2
+  exit 1
+fi
 
 #==============================================================================
 # CONTAINER IMAGE VALIDATION
@@ -123,13 +144,13 @@ if ! jq -e '
 fi
 
 if ! jq -e '
-  ([.[].labels.service] | sort) == ["Cloudflare Access", "Grafana"]
+  ([.[].labels.service] | sort) == ["Cloudflare Access", "Grafana", "Ignitox WordPress"]
 ' "$repository_root/config/prometheus/targets/blackbox.json" >/dev/null; then
   printf 'Blackbox targets must use the expected service labels.\n' >&2
   exit 1
 fi
 
-if ! grep -Fq "wait_for_prometheus_query external_probes 'probe_success{job=\"blackbox\"} == 1' 2" \
+if ! grep -Fq "wait_for_prometheus_query external_probes 'probe_success{job=\"blackbox\"} == 1' 3" \
   "$repository_root/scripts/manage.sh"; then
   printf 'Runtime verification must require both external probes.\n' >&2
   exit 1
@@ -167,11 +188,53 @@ if ! jq -s -e '([.[].uid] | unique | length) == length' "$repository_root"/dashb
   exit 1
 fi
 
-if ! grep -Fq 'dashboard_count != 9' "$repository_root/scripts/manage.sh" || \
-  ! grep -Fq 'Expected nine provisioned dashboards' "$repository_root/scripts/manage.sh"; then
-  printf 'Runtime verification must require all nine Grafana dashboards.\n' >&2
+if ! grep -Fq 'dashboard_count != 13' "$repository_root/scripts/manage.sh" || \
+  ! grep -Fq 'Expected thirteen provisioned dashboards' "$repository_root/scripts/manage.sh"; then
+  printf 'Runtime verification must require all thirteen Grafana dashboards.\n' >&2
   exit 1
 fi
+
+#==============================================================================
+# K3S AND WORDPRESS OBSERVABILITY VALIDATION
+#==============================================================================
+
+for metric in \
+  bharath_k3s_collector_success \
+  bharath_k3s_node_ready \
+  bharath_k3s_pods \
+  bharath_k3s_deployment_replicas_available \
+  bharath_k3s_statefulset_replicas_ready \
+  bharath_k3s_pvc_bound \
+  bharath_wordpress_backup_last_success_timestamp_seconds; do
+  if ! grep -Fq "$metric" "$repository_root/scripts/export-kubernetes-metrics.sh"; then
+    printf 'Required Kubernetes metric is missing: %s\n' "$metric" >&2
+    exit 1
+  fi
+done
+
+for alert_name in \
+  K3sMetricsCollectorFailed \
+  K3sNodeNotReady \
+  K3sWorkloadUnavailable \
+  K3sPersistentVolumeClaimUnbound \
+  WordPressDeploymentUnavailable \
+  WordPressDatabaseUnavailable \
+  WordPressBackupStale \
+  ManagedStoragePathMissing; do
+  if ! grep -Fq "alert: $alert_name" "$repository_root/config/prometheus/rules/monitoring.rules.yml"; then
+    printf 'Required observability alert is missing: %s\n' "$alert_name" >&2
+    exit 1
+  fi
+done
+
+if ! grep -Fq 'kubernetes-metrics-exporter.timer' "$repository_root/scripts/manage.sh" || \
+  ! grep -Fq 'count(up{job="node"} == 1) == 3' "$repository_root/scripts/manage.sh" || \
+  ! grep -Fq '/var/lib/node-exporter/textfile:/textfile:ro' "$repository_root/compose.yaml"; then
+  printf 'Runtime verification must cover three native host exporters and the Kubernetes collector.\n' >&2
+  exit 1
+fi
+
+bash "$repository_root/tests/test-export-kubernetes-metrics.sh" >/dev/null
 
 #==============================================================================
 # DOCKER COMPOSE VALIDATION

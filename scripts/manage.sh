@@ -125,10 +125,15 @@ deploy_stack() {
   install -m 0644 "$release_path/systemd/monitoring-stack.service" /etc/systemd/system/monitoring-stack.service
   install -m 0644 "$release_path/systemd/monitoring-stack-backup.service" /etc/systemd/system/monitoring-stack-backup.service
   install -m 0644 "$release_path/systemd/monitoring-stack-backup.timer" /etc/systemd/system/monitoring-stack-backup.timer
+  install -m 0755 "$release_path/scripts/export-kubernetes-metrics.sh" /usr/local/sbin/export-kubernetes-metrics
+  install -m 0644 "$release_path/systemd/kubernetes-metrics-exporter.service" /etc/systemd/system/kubernetes-metrics-exporter.service
+  install -m 0644 "$release_path/systemd/kubernetes-metrics-exporter.timer" /etc/systemd/system/kubernetes-metrics-exporter.timer
   systemctl daemon-reload
   systemctl enable monitoring-stack.service
   systemctl reload-or-restart monitoring-stack.service
   systemctl enable --now monitoring-stack-backup.timer
+  systemctl enable --now kubernetes-metrics-exporter.timer
+  systemctl start kubernetes-metrics-exporter.service
   verify_stack
   printf '%s\n' "$deployment_fingerprint" > "$fingerprint_file.partial"
   chmod 0600 "$fingerprint_file.partial"
@@ -290,13 +295,17 @@ verify_stack() {
   printf 'monitoring_services=ready\n'
 
   wait_for_prometheus_targets
-  wait_for_prometheus_query external_probes 'probe_success{job="blackbox"} == 1' 2
+  wait_for_prometheus_query external_probes 'probe_success{job="blackbox"} == 1' 3
   wait_for_prometheus_query backstage_readiness 'probe_success{job="backstage-health"} == 1' 1
   wait_for_prometheus_query backstage_postgresql 'pg_up{job="backstage-postgres"} == 1' 1
   wait_for_prometheus_query backstage_backup 'time() - backstage_backup_last_success_timestamp_seconds{job="backstage-backup"} < 86400' 1
   wait_for_prometheus_query cloudflared_connections 'cloudflared_tunnel_ha_connections > 0' 1
   wait_for_prometheus_query github_runner_metrics 'github_runner_scrape_success{job="github-runners"} == 1' 1
   wait_for_prometheus_query github_runner_capacity 'sum(github_runner_online{job="github-runners"}) == 2' 1
+  wait_for_prometheus_query production_hosts 'count(up{job="node"} == 1) == 3' 1
+  wait_for_prometheus_query k3s_state 'bharath_k3s_collector_success == 1' 1
+  wait_for_prometheus_query wordpress_state 'bharath_k3s_deployment_replicas_available{namespace="ignitox",deployment="wordpress"} >= 1' 1
+  wait_for_prometheus_query wordpress_availability 'probe_success{job="blackbox",service="Ignitox WordPress"} == 1' 1
   wait_for_prometheus_query alertmanager_discovery 'prometheus_notifications_alertmanagers_discovered > 0' 1
 
   rules=$(curl --fail --silent --show-error http://127.0.0.1:9090/api/v1/rules)
@@ -314,8 +323,8 @@ verify_stack() {
   printf 'alertmanager_status=ready\n'
 
   dashboard_count=$(find "$install_root/current/dashboards" -maxdepth 1 -type f -name '*.json' | wc -l | tr -d ' ')
-  if (( dashboard_count != 9 )); then
-    printf 'Expected nine provisioned dashboards, found %s.\n' "$dashboard_count" >&2
+  if (( dashboard_count != 13 )); then
+    printf 'Expected thirteen provisioned dashboards, found %s.\n' "$dashboard_count" >&2
     return 1
   fi
   printf 'grafana_dashboards=ready\n'
@@ -323,6 +332,9 @@ verify_stack() {
   systemctl is-enabled --quiet monitoring-stack-backup.timer
   systemctl is-active --quiet monitoring-stack-backup.timer
   printf 'monitoring_backup_timer=ready\n'
+  systemctl is-enabled --quiet kubernetes-metrics-exporter.timer
+  systemctl is-active --quiet kubernetes-metrics-exporter.timer
+  printf 'kubernetes_metrics_timer=ready\n'
   printf 'monitoring_verify=ready\n'
 }
 

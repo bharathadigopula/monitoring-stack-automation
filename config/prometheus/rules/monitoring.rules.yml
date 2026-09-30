@@ -14,7 +14,7 @@ groups:
   - name: monitoring-recording
     rules:
       - record: instance:node_cpu_utilisation:rate5m
-        expr: 1 - avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m]))
+        expr: 1 - avg by (job, host, instance) (rate(node_cpu_seconds_total{job="node",mode="idle"}[5m]))
 
       - record: instance:node_memory_utilisation:ratio
         expr: 1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)
@@ -239,6 +239,156 @@ groups:
         annotations:
           summary: Host filesystem inode utilisation is above 90 percent
           description: Filesystem {{ $labels.mountpoint }} on {{ $labels.instance }} is running out of inodes.
+
+      - alert: HostSwapPressure
+        expr: (node_memory_SwapTotal_bytes{job="node"} > 0) and ((node_memory_SwapTotal_bytes{job="node"} - node_memory_SwapFree_bytes{job="node"}) / node_memory_SwapTotal_bytes{job="node"} > 0.50)
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: Host swap utilisation is above 50 percent
+          description: Host {{ $labels.host }} has sustained swap pressure for 15 minutes.
+
+      - alert: HostSystemdUnitFailed
+        expr: node_systemd_unit_state{job="node",state="failed"} == 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: A managed host systemd unit has failed
+          description: Unit {{ $labels.name }} on {{ $labels.host }} has remained failed for five minutes.
+
+      - alert: ManagedStoragePathMissing
+        expr: bharath_managed_path_available{job="node"} == 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: A managed storage path is missing
+          description: Path {{ $labels.path }} on {{ $labels.host }} has been unavailable for 15 minutes.
+
+      #========================================================================
+      # K3S CLUSTER ALERTS
+      #========================================================================
+
+      - alert: K3sMetricsCollectorFailed
+        expr: bharath_k3s_collector_success == 0 or absent(bharath_k3s_collector_success)
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: K3s state metrics are unavailable
+          description: The K3s state collector has failed or stopped reporting for five minutes.
+
+      - alert: K3sNodeNotReady
+        expr: bharath_k3s_node_ready == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: A K3s node is not ready
+          description: K3s node {{ $labels.node }} has not been ready for five minutes.
+
+      - alert: K3sWorkloadUnavailable
+        expr: bharath_k3s_deployment_replicas_available < bharath_k3s_deployment_replicas_desired
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: A K3s deployment has unavailable replicas
+          description: Deployment {{ $labels.namespace }}/{{ $labels.deployment }} has missed its desired replica count for ten minutes.
+
+      - alert: K3sStatefulSetUnavailable
+        expr: bharath_k3s_statefulset_replicas_ready < bharath_k3s_statefulset_replicas_desired
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: A K3s StatefulSet has unavailable replicas
+          description: StatefulSet {{ $labels.namespace }}/{{ $labels.statefulset }} has missed its desired replica count for ten minutes.
+
+      - alert: K3sPodFailed
+        expr: bharath_k3s_pods{phase="Failed"} > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Failed pods exist in K3s
+          description: Namespace {{ $labels.namespace }} contains failed pods.
+
+      - alert: K3sContainerRestarting
+        expr: increase(bharath_k3s_container_restarts_total[15m]) > 2
+        labels:
+          severity: warning
+        annotations:
+          summary: A K3s container is repeatedly restarting
+          description: Container {{ $labels.namespace }}/{{ $labels.pod }}/{{ $labels.container }} restarted more than twice in 15 minutes.
+
+      - alert: K3sPersistentVolumeClaimUnbound
+        expr: bharath_k3s_pvc_bound == 0
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: A K3s persistent volume claim is unbound
+          description: PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} has been unbound for ten minutes.
+
+      #========================================================================
+      # WORDPRESS PLATFORM ALERTS
+      #========================================================================
+
+      - alert: WordPressDeploymentUnavailable
+        expr: bharath_k3s_deployment_replicas_available{namespace="ignitox",deployment=~"wordpress|redis"} < bharath_k3s_deployment_replicas_desired{namespace="ignitox",deployment=~"wordpress|redis"}
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: An Ignitox WordPress deployment is unavailable
+          description: Deployment {{ $labels.deployment }} has missed its desired replica count for five minutes.
+
+      - alert: WordPressDatabaseUnavailable
+        expr: bharath_k3s_statefulset_replicas_ready{namespace="ignitox",statefulset="mariadb"} < 1 or bharath_wordpress_mariadb_up == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: The Ignitox WordPress database is unavailable
+          description: MariaDB has no ready replica in the ignitox namespace.
+
+      - alert: WordPressDatabaseConnectionPressure
+        expr: bharath_wordpress_mariadb_threads_connected / bharath_wordpress_mariadb_max_connections > 0.80
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Ignitox WordPress database connections exceed 80 percent
+          description: MariaDB connection usage has remained high for ten minutes.
+
+      - alert: WordPressRedisUnavailable
+        expr: bharath_wordpress_redis_up == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Ignitox WordPress Redis is unavailable
+          description: Redis health metrics have been unavailable for five minutes.
+
+      - alert: WordPressRedisEvictions
+        expr: increase(bharath_wordpress_redis_evicted_keys_total[15m]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: Ignitox WordPress Redis is evicting keys
+          description: Redis evicted one or more cache keys during the last 15 minutes.
+
+      - alert: WordPressBackupStale
+        expr: time() - bharath_wordpress_backup_last_success_timestamp_seconds > 93600
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: The Ignitox WordPress backup is stale
+          description: No successful WordPress backup has completed during the last 26 hours.
 
       #==========================================================================
       # CONTAINER RESOURCE ALERT

@@ -1,0 +1,32 @@
+[
+  {
+    "targets": [
+      "node-exporter:9100"
+    ],
+    "labels": {
+      "cloud": "oci",
+      "environment": "prd",
+      "host": "k3s"
+    }
+  },
+  {
+    "targets": [
+      "10.10.10.68:9100"
+    ],
+    "labels": {
+      "cloud": "oci",
+      "environment": "prd",
+      "host": "platform"
+    }
+  },
+  {
+    "targets": [
+      "10.10.10.125:9100"
+    ],
+    "labels": {
+      "cloud": "oci",
+      "environment": "prd",
+      "host": "web-01"
+    }
+  }
+]

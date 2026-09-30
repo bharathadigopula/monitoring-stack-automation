@@ -46,9 +46,9 @@ scrape_configs:
           #============================================================================
 
   - job_name: node
-    static_configs:
-      - targets:
-          - node-exporter:9100
+    file_sd_configs:
+      - files:
+          - /etc/prometheus/targets/nodes.json
 
           #============================================================================
           # CONTAINER METRICS
