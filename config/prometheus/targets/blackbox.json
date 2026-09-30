@@ -18,5 +18,15 @@
       "probe": "https",
       "service": "Cloudflare Access"
     }
+  },
+  {
+    "targets": [
+      "https://ignitox.bharathcloudops.com"
+    ],
+    "labels": {
+      "environment": "prd",
+      "probe": "https",
+      "service": "Ignitox WordPress"
+    }
   }
 ]

@@ -152,37 +152,24 @@ services:
       - grafana-data:/var/lib/grafana
 
   #============================================================================
-  # NODE EXPORTER SERVICE
+  # LOCAL K3S NODE EXPORTER SERVICE
   #============================================================================
 
   node-exporter:
     image: quay.io/prometheus/node-exporter:v1.12.1
-
-    #==========================================================================
-    # NODE EXPORTER RUNTIME
-    #==========================================================================
-
     command:
       - --path.rootfs=/host
-
-    #==========================================================================
-    # NODE EXPORTER RESOURCE LIMITS
-    #==========================================================================
-
+      - --collector.textfile.directory=/textfile
     deploy:
       resources:
         limits:
           cpus: "0.05"
           memory: 64M
-
-            #==========================================================================
-            # NODE EXPORTER HOST ACCESS
-            #==========================================================================
-
     pid: host
     restart: unless-stopped
     volumes:
       - /:/host:ro,rslave
+      - /var/lib/node-exporter/textfile:/textfile:ro
 
   #============================================================================
   # CADVISOR SERVICE

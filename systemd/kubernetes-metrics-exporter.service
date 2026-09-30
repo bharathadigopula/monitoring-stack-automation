@@ -1,0 +1,12 @@
+#==============================================================================
+# K3S AND WORDPRESS METRICS EXPORTER SERVICE
+#==============================================================================
+
+[Unit]
+Description=Export K3s and WordPress state metrics
+After=k3s.service node-exporter.service
+Wants=k3s.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/export-kubernetes-metrics
