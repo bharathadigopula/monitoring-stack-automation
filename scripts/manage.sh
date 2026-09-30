@@ -180,6 +180,9 @@ verify_prometheus_query() {
   ' <<< "$response" >/dev/null; then
     if [[ "$report_failure" == "true" ]]; then
       printf 'Prometheus verification failed: %s.\n' "$check_name" >&2
+      jq -c --arg check "$check_name" --arg query "$expression" \
+        '{check: $check, query: $query, result: .data.result}' <<< "$response" |
+        sed 's/^/prometheus_query_diagnostics=/'
     fi
     return 1
   fi

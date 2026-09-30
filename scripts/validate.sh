@@ -163,7 +163,8 @@ if ! jq -e 'type == "array" and length == 0' "$repository_root/config/prometheus
 fi
 
 if ! grep -Fq "wait_for_prometheus_query external_probes 'probe_success{job=\"blackbox\"} == 1' 3" \
-  "$repository_root/scripts/manage.sh"; then
+  "$repository_root/scripts/manage.sh" || \
+  ! grep -Fq 'prometheus_query_diagnostics=' "$repository_root/scripts/manage.sh"; then
   printf 'Runtime verification must require both external probes.\n' >&2
   exit 1
 fi
