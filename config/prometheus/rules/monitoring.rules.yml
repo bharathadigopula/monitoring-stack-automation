@@ -338,22 +338,22 @@ groups:
       #========================================================================
 
       - alert: WordPressDeploymentUnavailable
-        expr: bharath_k3s_deployment_replicas_available{namespace="ignitox",deployment=~"wordpress|redis"} < bharath_k3s_deployment_replicas_desired{namespace="ignitox",deployment=~"wordpress|redis"}
+        expr: (bharath_k3s_deployment_replicas_available{deployment=~"wordpress|redis"} < bharath_k3s_deployment_replicas_desired{deployment=~"wordpress|redis"}) * on(namespace) group_left(site) (bharath_wordpress_mariadb_up >= 0)
         for: 5m
         labels:
           severity: critical
         annotations:
-          summary: An Ignitox WordPress deployment is unavailable
-          description: Deployment {{ $labels.deployment }} has missed its desired replica count for five minutes.
+          summary: A WordPress deployment is unavailable
+          description: Deployment {{ $labels.namespace }}/{{ $labels.deployment }} for site {{ $labels.site }} has missed its desired replica count for five minutes.
 
       - alert: WordPressDatabaseUnavailable
-        expr: bharath_k3s_statefulset_replicas_ready{namespace="ignitox",statefulset="mariadb"} < 1 or bharath_wordpress_mariadb_up == 0
+        expr: (bharath_k3s_statefulset_replicas_ready{statefulset="mariadb"} < 1) * on(namespace) group_left(site) (bharath_wordpress_mariadb_up >= 0) or bharath_wordpress_mariadb_up == 0
         for: 5m
         labels:
           severity: critical
         annotations:
-          summary: The Ignitox WordPress database is unavailable
-          description: MariaDB has no ready replica in the ignitox namespace.
+          summary: A WordPress database is unavailable
+          description: MariaDB for site {{ $labels.site }} in namespace {{ $labels.namespace }} has no ready replica.
 
       - alert: WordPressDatabaseConnectionPressure
         expr: bharath_wordpress_mariadb_threads_connected / bharath_wordpress_mariadb_max_connections > 0.80
@@ -361,8 +361,8 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: Ignitox WordPress database connections exceed 80 percent
-          description: MariaDB connection usage has remained high for ten minutes.
+          summary: WordPress database connections exceed 80 percent
+          description: MariaDB connection usage for site {{ $labels.site }} has remained high for ten minutes.
 
       - alert: WordPressRedisUnavailable
         expr: bharath_wordpress_redis_up == 0
@@ -370,16 +370,16 @@ groups:
         labels:
           severity: critical
         annotations:
-          summary: Ignitox WordPress Redis is unavailable
-          description: Redis health metrics have been unavailable for five minutes.
+          summary: WordPress Redis is unavailable
+          description: Redis health metrics for site {{ $labels.site }} have been unavailable for five minutes.
 
       - alert: WordPressRedisEvictions
         expr: increase(bharath_wordpress_redis_evicted_keys_total[15m]) > 0
         labels:
           severity: warning
         annotations:
-          summary: Ignitox WordPress Redis is evicting keys
-          description: Redis evicted one or more cache keys during the last 15 minutes.
+          summary: WordPress Redis is evicting keys
+          description: Redis for site {{ $labels.site }} evicted one or more cache keys during the last 15 minutes.
 
       - alert: WordPressBackupStale
         expr: time() - bharath_wordpress_backup_last_success_timestamp_seconds > 93600
@@ -387,8 +387,8 @@ groups:
         labels:
           severity: critical
         annotations:
-          summary: The Ignitox WordPress backup is stale
-          description: No successful WordPress backup has completed during the last 26 hours.
+          summary: A WordPress backup is stale
+          description: No successful backup for site {{ $labels.site }} has completed during the last 26 hours.
 
       #==========================================================================
       # CONTAINER RESOURCE ALERT

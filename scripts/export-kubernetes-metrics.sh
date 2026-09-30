@@ -9,10 +9,11 @@ set -euo pipefail
 k3s_binary="${K3S_BINARY:-/usr/local/bin/k3s}"
 kubeconfig="${K3S_KUBECONFIG:-/etc/rancher/k3s/k3s.yaml}"
 output_directory="${NODE_EXPORTER_TEXTFILE_DIRECTORY:-/var/lib/node-exporter/textfile}"
-wordpress_namespace="${WORDPRESS_NAMESPACE:-ignitox}"
+target_directory="${PROMETHEUS_TARGET_DIRECTORY:-/opt/monitoring-stack/current/config/prometheus/targets}"
 temporary_directory=$(mktemp -d)
 temporary_output=$(mktemp "$output_directory/kubernetes.prom.XXXXXX")
-trap 'rm -rf "$temporary_directory"; rm -f "$temporary_output"' EXIT
+temporary_targets=$(mktemp "$target_directory/wordpress.json.XXXXXX")
+trap 'rm -rf "$temporary_directory"; rm -f "$temporary_output" "$temporary_targets"' EXIT
 
 kubectl_command=("$k3s_binary" kubectl --kubeconfig "$kubeconfig")
 
@@ -23,7 +24,9 @@ if [[ ! -x "$k3s_binary" || ! -r "$kubeconfig" ]] || \
   ! "${kubectl_command[@]}" get statefulsets --all-namespaces -o json > "$temporary_directory/statefulsets.json" || \
   ! "${kubectl_command[@]}" get persistentvolumeclaims --all-namespaces -o json > "$temporary_directory/pvcs.json" || \
   ! "${kubectl_command[@]}" get persistentvolumes -o json > "$temporary_directory/pvs.json" || \
-  ! "${kubectl_command[@]}" get jobs --all-namespaces -o json > "$temporary_directory/jobs.json"; then
+  ! "${kubectl_command[@]}" get jobs --all-namespaces -o json > "$temporary_directory/jobs.json" || \
+  ! "${kubectl_command[@]}" get namespaces -o json > "$temporary_directory/namespaces.json" || \
+  ! "${kubectl_command[@]}" get ingresses --all-namespaces -o json > "$temporary_directory/ingresses.json"; then
   printf 'bharath_k3s_collector_success 0\n' > "$temporary_output"
   chmod 0644 "$temporary_output"
   mv "$temporary_output" "$output_directory/kubernetes.prom"
@@ -31,6 +34,13 @@ if [[ ! -x "$k3s_binary" || ! -r "$kubeconfig" ]] || \
   rm -rf "$temporary_directory"
   exit 1
 fi
+
+jq -r '
+  .items[] |
+  select(.metadata.labels["bharathcloudops.com/wordpress-site"] != null) |
+  [.metadata.labels["bharathcloudops.com/wordpress-site"], .metadata.name] |
+  @tsv
+' "$temporary_directory/namespaces.json" > "$temporary_directory/wordpress-sites.tsv"
 
 {
   printf 'bharath_k3s_collector_success 1\n'
@@ -79,51 +89,70 @@ fi
           "$namespace" "$persistentvolumeclaim" "${volume_bytes:-0}"
       fi
     done
-  jq -r --arg namespace "$wordpress_namespace" '
-    [.items[] | select(.metadata.namespace == $namespace and any(.metadata.ownerReferences[]?; .kind == "CronJob" and .name == "wordpress-backup") and (.status.succeeded // 0) > 0) | .status.completionTime | fromdateiso8601] |
-    max // 0 |
-    "bharath_wordpress_backup_last_success_timestamp_seconds \(.)"
-  ' "$temporary_directory/jobs.json"
+  while IFS=$'\t' read -r site namespace; do
+    jq -r --arg site "$site" --arg namespace "$namespace" '
+      [.items[] | select(.metadata.namespace == $namespace and any(.metadata.ownerReferences[]?; .kind == "CronJob" and .name == "wordpress-backup") and (.status.succeeded // 0) > 0) | .status.completionTime | fromdateiso8601] |
+      max // 0 |
+      "bharath_wordpress_backup_last_success_timestamp_seconds{site=\"\($site)\",namespace=\"\($namespace)\"} \(.)"
+    ' "$temporary_directory/jobs.json"
+  done < "$temporary_directory/wordpress-sites.tsv"
 } > "$temporary_output"
 
 #==============================================================================
 # WORDPRESS DEPENDENCY METRICS
 #==============================================================================
 
-database_status=$("${kubectl_command[@]}" --namespace "$wordpress_namespace" exec statefulset/mariadb -- \
-  sh -c "MYSQL_PWD=\"\$MARIADB_PASSWORD\" mariadb --user=\"\$MARIADB_USER\" --batch --skip-column-names --execute='SHOW GLOBAL STATUS WHERE Variable_name IN (\"Threads_connected\",\"Max_used_connections\",\"Questions\",\"Slow_queries\",\"Uptime\"); SHOW GLOBAL VARIABLES LIKE \"max_connections\";'" 2>/dev/null || true)
-if [[ -n "$database_status" ]]; then
-  printf 'bharath_wordpress_mariadb_up 1\n' >> "$temporary_output"
-  awk 'BEGIN { IGNORECASE=1 }
-    $1 == "Threads_connected" { print "bharath_wordpress_mariadb_threads_connected " $2 }
-    $1 == "Max_used_connections" { print "bharath_wordpress_mariadb_max_used_connections " $2 }
-    $1 == "Questions" { print "bharath_wordpress_mariadb_questions_total " $2 }
-    $1 == "Slow_queries" { print "bharath_wordpress_mariadb_slow_queries_total " $2 }
-    $1 == "Uptime" { print "bharath_wordpress_mariadb_uptime_seconds " $2 }
-    $1 == "max_connections" { print "bharath_wordpress_mariadb_max_connections " $2 }
-  ' <<< "$database_status" >> "$temporary_output"
-else
-  printf 'bharath_wordpress_mariadb_up 0\n' >> "$temporary_output"
-fi
+while IFS=$'\t' read -r site namespace; do
+  metric_labels="site=\"$site\",namespace=\"$namespace\""
+  database_status=$("${kubectl_command[@]}" --namespace "$namespace" exec statefulset/mariadb -- \
+    sh -c "MYSQL_PWD=\"\$MARIADB_PASSWORD\" mariadb --user=\"\$MARIADB_USER\" --batch --skip-column-names --execute='SHOW GLOBAL STATUS WHERE Variable_name IN (\"Threads_connected\",\"Max_used_connections\",\"Questions\",\"Slow_queries\",\"Uptime\"); SHOW GLOBAL VARIABLES LIKE \"max_connections\";'" 2>/dev/null || true)
+  if [[ -n "$database_status" ]]; then
+    printf 'bharath_wordpress_mariadb_up{%s} 1\n' "$metric_labels" >> "$temporary_output"
+    awk -v labels="$metric_labels" 'BEGIN { IGNORECASE=1 }
+      $1 == "Threads_connected" { print "bharath_wordpress_mariadb_threads_connected{" labels "} " $2 }
+      $1 == "Max_used_connections" { print "bharath_wordpress_mariadb_max_used_connections{" labels "} " $2 }
+      $1 == "Questions" { print "bharath_wordpress_mariadb_questions_total{" labels "} " $2 }
+      $1 == "Slow_queries" { print "bharath_wordpress_mariadb_slow_queries_total{" labels "} " $2 }
+      $1 == "Uptime" { print "bharath_wordpress_mariadb_uptime_seconds{" labels "} " $2 }
+      $1 == "max_connections" { print "bharath_wordpress_mariadb_max_connections{" labels "} " $2 }
+    ' <<< "$database_status" >> "$temporary_output"
+  else
+    printf 'bharath_wordpress_mariadb_up{%s} 0\n' "$metric_labels" >> "$temporary_output"
+  fi
 
-redis_status=$("${kubectl_command[@]}" --namespace "$wordpress_namespace" exec deployment/redis -- \
-  redis-cli --raw INFO stats memory clients 2>/dev/null || true)
-if grep -Fq 'redis_version:' <<< "$redis_status" || grep -Fq 'uptime_in_seconds:' <<< "$redis_status"; then
-  printf 'bharath_wordpress_redis_up 1\n' >> "$temporary_output"
-  awk -F: '
-    $1 == "connected_clients" { print "bharath_wordpress_redis_connected_clients " $2 }
-    $1 == "used_memory" { print "bharath_wordpress_redis_used_memory_bytes " $2 }
-    $1 == "evicted_keys" { print "bharath_wordpress_redis_evicted_keys_total " $2 }
-    $1 == "keyspace_hits" { print "bharath_wordpress_redis_keyspace_hits_total " $2 }
-    $1 == "keyspace_misses" { print "bharath_wordpress_redis_keyspace_misses_total " $2 }
-    $1 == "uptime_in_seconds" { print "bharath_wordpress_redis_uptime_seconds " $2 }
-  ' <<< "$redis_status" | tr -d '\r' >> "$temporary_output"
-else
-  printf 'bharath_wordpress_redis_up 0\n' >> "$temporary_output"
-fi
+  redis_status=$("${kubectl_command[@]}" --namespace "$namespace" exec deployment/redis -- \
+    redis-cli --raw INFO stats memory clients 2>/dev/null || true)
+  if grep -Fq 'redis_version:' <<< "$redis_status" || grep -Fq 'uptime_in_seconds:' <<< "$redis_status"; then
+    printf 'bharath_wordpress_redis_up{%s} 1\n' "$metric_labels" >> "$temporary_output"
+    awk -F: -v labels="$metric_labels" '
+      $1 == "connected_clients" { print "bharath_wordpress_redis_connected_clients{" labels "} " $2 }
+      $1 == "used_memory" { print "bharath_wordpress_redis_used_memory_bytes{" labels "} " $2 }
+      $1 == "evicted_keys" { print "bharath_wordpress_redis_evicted_keys_total{" labels "} " $2 }
+      $1 == "keyspace_hits" { print "bharath_wordpress_redis_keyspace_hits_total{" labels "} " $2 }
+      $1 == "keyspace_misses" { print "bharath_wordpress_redis_keyspace_misses_total{" labels "} " $2 }
+      $1 == "uptime_in_seconds" { print "bharath_wordpress_redis_uptime_seconds{" labels "} " $2 }
+    ' <<< "$redis_status" | tr -d '\r' >> "$temporary_output"
+  else
+    printf 'bharath_wordpress_redis_up{%s} 0\n' "$metric_labels" >> "$temporary_output"
+  fi
+done < "$temporary_directory/wordpress-sites.tsv"
+
+jq -n --slurpfile namespaces "$temporary_directory/namespaces.json" --slurpfile ingresses "$temporary_directory/ingresses.json" '
+  [$namespaces[0].items[] |
+    select(.metadata.labels["bharathcloudops.com/wordpress-site"] != null) |
+    .metadata.name as $namespace |
+    .metadata.labels["bharathcloudops.com/wordpress-site"] as $site |
+    $ingresses[0].items[] |
+    select(.metadata.namespace == $namespace) |
+    .spec.rules[]?.host |
+    select(. != null) |
+    {targets: ["https://" + .], labels: {environment: "prd", probe: "https", service: "WordPress", site: $site, namespace: $namespace}}]
+' > "$temporary_targets"
 
 chmod 0644 "$temporary_output"
 mv "$temporary_output" "$output_directory/kubernetes.prom"
+chmod 0644 "$temporary_targets"
+mv "$temporary_targets" "$target_directory/wordpress.json"
 trap - EXIT
 rm -rf "$temporary_directory"
 printf 'kubernetes_metrics=ready\n'

@@ -33,6 +33,7 @@ required_files=(
   config/prometheus/targets/cloudflared.json
   config/prometheus/targets/github-runners.json
   config/prometheus/targets/nodes.json
+  config/prometheus/targets/wordpress.json
   config/grafana/provisioning/datasources/datasource.yml
   config/grafana/provisioning/dashboards/default.yml
   dashboards/monitoring-health.json
@@ -149,9 +150,15 @@ if ! jq -e '
 fi
 
 if ! jq -e '
-  ([.[].labels.service] | sort) == ["Cloudflare Access", "Grafana", "Ignitox WordPress"]
+  ([.[].labels.service] | sort) == ["Cloudflare Access", "Grafana"]
 ' "$repository_root/config/prometheus/targets/blackbox.json" >/dev/null; then
-  printf 'Blackbox targets must use the expected service labels.\n' >&2
+  printf 'Static blackbox targets must exclude dynamically discovered WordPress sites.\n' >&2
+  exit 1
+fi
+
+if ! jq -e 'type == "array" and length == 0' "$repository_root/config/prometheus/targets/wordpress.json" >/dev/null || \
+  ! grep -Fq '/etc/prometheus/targets/wordpress.json' "$repository_root/config/prometheus/prometheus.yml"; then
+  printf 'WordPress blackbox targets must be populated by Kubernetes discovery.\n' >&2
   exit 1
 fi
 
@@ -216,6 +223,18 @@ for metric in \
     exit 1
   fi
 done
+
+if grep -Rqi --exclude=validate.sh 'ignitox\|WORDPRESS_NAMESPACE' \
+  "$repository_root/scripts" "$repository_root/config" "$repository_root/dashboards"; then
+  printf 'Runtime monitoring must discover WordPress projects instead of hard-coding a site.\n' >&2
+  exit 1
+fi
+
+if ! grep -Fq 'bharathcloudops.com/wordpress-site' "$repository_root/scripts/export-kubernetes-metrics.sh" || \
+  ! grep -Fq 'label_values(bharath_wordpress_mariadb_up, site)' "$repository_root/dashboards/wordpress-platform.json"; then
+  printf 'WordPress metrics and dashboards must retain per-site discovery.\n' >&2
+  exit 1
+fi
 
 for alert_name in \
   K3sMetricsCollectorFailed \
